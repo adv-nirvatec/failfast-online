@@ -15,6 +15,8 @@ export async function GET(req: NextRequest) {
     const result = await pool.query(
       `SELECT id, client_name, client_email, app_name, app_description, industry, status, 
               assigned_to, created_at, updated_at,
+              tech_stack,
+              full_blueprint,
               CASE WHEN full_blueprint IS NOT NULL THEN true ELSE false END as has_full_blueprint
        FROM blueprints 
        ORDER BY created_at DESC 

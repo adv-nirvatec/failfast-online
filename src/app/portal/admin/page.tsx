@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { TechStackView, BlueprintDocsList, FullBlueprintTabs } from "@/components/BlueprintViewer";
 
 interface Blueprint {
   id: string;
@@ -14,7 +15,9 @@ interface Blueprint {
   status: string;
   assigned_to: string | null;
   created_at: string;
+  tech_stack?: any;
   full_blueprint?: any;
+  has_full_blueprint: boolean;
 }
 
 interface Client {
@@ -39,6 +42,7 @@ export default function AdminDashboard() {
   const [createMsg, setCreateMsg] = useState("");
   const [sendingCreds, setSendingCreds] = useState<string | null>(null);
   const [credsMsg, setCredsMsg] = useState<{ id: string; text: string; ok: boolean } | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -49,7 +53,7 @@ export default function AdminDashboard() {
       if (bpRes.status === 403) { router.push("/portal/login"); return; }
       setBlueprints(await bpRes.json());
       setClients(await clRes.json());
-    } catch (err: any) {
+    } catch {
       // silent
     } finally {
       setLoading(false);
@@ -131,28 +135,6 @@ export default function AdminDashboard() {
     );
   }
 
-  const statusBadge = (bp: Blueprint) => {
-    if (bp.status === "full" || bp.full_blueprint) {
-      return (
-        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-[#6C63FF]/10 text-[#a5a0ff] border border-[#6C63FF]/20">
-          Complete
-        </span>
-      );
-    }
-    if (bp.status === "assigned") {
-      return (
-        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20">
-          Assigned
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20">
-        Partial
-      </span>
-    );
-  };
-
   return (
     <div className="min-h-screen bg-[#0a0a0f]">
       <header className="border-b border-[#1e1e2e] bg-[#111118]">
@@ -165,15 +147,9 @@ export default function AdminDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/portal/client" className="text-sm text-[#9090a8] hover:text-white transition-colors">
-              Client View
-            </Link>
-            <Link href="/" className="text-sm text-[#9090a8] hover:text-white transition-colors">
-              Generator
-            </Link>
-            <button onClick={handleLogout} className="text-sm text-[#606080] hover:text-[#ef4444] transition-colors">
-              Sign Out
-            </button>
+            <Link href="/portal/client" className="text-sm text-[#9090a8] hover:text-white transition-colors">Client View</Link>
+            <Link href="/" className="text-sm text-[#9090a8] hover:text-white transition-colors">Generator</Link>
+            <button onClick={handleLogout} className="text-sm text-[#606080] hover:text-[#ef4444] transition-colors">Sign Out</button>
           </div>
         </div>
       </header>
@@ -197,85 +173,99 @@ export default function AdminDashboard() {
               </div>
             ) : (
               <div className="grid gap-3">
-                {blueprints.map((bp) => (
-                  <div key={bp.id} className="rounded-xl border border-[#1e1e2e] bg-[#111118] p-5 hover:border-[#6C63FF]/20 transition-all">
-                    <div className="flex items-start justify-between gap-4 flex-wrap">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-3 mb-1.5">
-                          <h3 className="text-base font-semibold text-white">{bp.app_name}</h3>
-                          {statusBadge(bp)}
-                        </div>
-                        <p className="text-sm text-[#9090a8] line-clamp-2 mb-2">{bp.app_description}</p>
-                        <div className="flex items-center gap-3 text-xs text-[#606080] flex-wrap">
-                          {bp.industry && <span>🏭 {bp.industry}</span>}
-                          {bp.client_email && <span>📧 {bp.client_email}</span>}
-                          {bp.client_name && <span>👤 {bp.client_name}</span>}
-                          <span>🕐 {new Date(bp.created_at).toLocaleDateString()}</span>
-                        </div>
-                      </div>
+                {blueprints.map((bp) => {
+                  const isExpanded = expanded === bp.id;
+                  const ts = bp.tech_stack;
+                  const fullBp = bp.full_blueprint;
+                  const docs = ts?.blueprintDocuments;
 
-                      <div className="shrink-0 flex flex-wrap items-center gap-2">
-                        {/* Send Credentials button — visible when blueprint has email and full blueprint */}
-                        {bp.client_email && (
-                          sendingCreds === bp.id ? (
-                            <span className="px-3 py-1.5 rounded-lg bg-[#f59e0b]/10 text-[#f59e0b] text-xs flex items-center gap-1">
-                              <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                              </svg>
-                              Sending...
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => handleSendCredentials(bp.id)}
-                              className="px-3 py-1.5 rounded-lg bg-[#10b981]/10 border border-[#10b981]/30 text-[#10b981] text-xs font-medium hover:bg-[#10b981]/20 transition-all"
-                              title="Email client login credentials"
-                            >
-                              📧 Send Login
+                  return (
+                    <div key={bp.id} className="rounded-xl border border-[#1e1e2e] bg-[#111118] overflow-hidden">
+                      {/* Summary Row */}
+                      <button
+                        onClick={() => setExpanded(isExpanded ? null : bp.id)}
+                        className="w-full text-left px-5 py-4 flex items-center justify-between gap-4 hover:bg-[#161622] transition-colors"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-3 mb-1">
+                            <h3 className="text-base font-semibold text-white">{bp.app_name}</h3>
+                            <StatusBadge bp={bp} />
+                          </div>
+                          <p className="text-sm text-[#9090a8] line-clamp-1">{bp.app_description}</p>
+                          <div className="flex items-center gap-3 mt-1.5 text-xs text-[#606080] flex-wrap">
+                            {bp.industry && <span>🏭 {bp.industry}</span>}
+                            {bp.client_email && <span>📧 {bp.client_email}</span>}
+                            {bp.client_name && <span>👤 {bp.client_name}</span>}
+                            <span>🕐 {new Date(bp.created_at).toLocaleDateString()}</span>
+                            {bp.assigned_to && <span className="text-[#10b981]">✓ Assigned</span>}
+                          </div>
+                        </div>
+                        <svg className={`w-5 h-5 text-[#606080] transition-transform shrink-0 ${isExpanded ? "rotate-180" : ""}`}
+                          fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+
+                      {/* Expanded Detail */}
+                      {isExpanded && (
+                        <div className="border-t border-[#1e1e2e] px-6 py-5 space-y-6">
+                          {/* Action Buttons */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {bp.client_email && (
+                              sendingCreds === bp.id ? (
+                                <span className="px-3 py-1.5 rounded-lg bg-[#f59e0b]/10 text-[#f59e0b] text-xs flex items-center gap-1">
+                                  <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                  </svg>
+                                  Sending...
+                                </span>
+                              ) : (
+                                <button onClick={() => handleSendCredentials(bp.id)}
+                                  className="px-3 py-1.5 rounded-lg bg-[#10b981]/10 border border-[#10b981]/30 text-[#10b981] text-xs font-medium hover:bg-[#10b981]/20 transition-all">
+                                  📧 Send Login
+                                </button>
+                              )
+                            )}
+                            <button onClick={() => setAssigning(bp.id)}
+                              className="px-3 py-1.5 rounded-lg border border-[#6C63FF]/30 text-[#a5a0ff] text-xs font-medium hover:bg-[#6C63FF]/10 transition-all">
+                              {bp.assigned_to ? "Reassign" : "Assign to Client"}
                             </button>
-                          )
-                        )}
-                        <button
-                          onClick={() => setAssigning(bp.id)}
-                          className="px-3 py-1.5 rounded-lg border border-[#6C63FF]/30 text-[#a5a0ff] text-xs font-medium hover:bg-[#6C63FF]/10 transition-all"
-                        >
-                          {bp.assigned_to ? "Reassign" : "Assign"}
-                        </button>
-                      </div>
+                          </div>
+
+                          {credsMsg?.id === bp.id && (
+                            <div className={`rounded-lg px-3 py-2 text-xs ${credsMsg.ok ? "bg-[#10b981]/10 text-[#10b981]" : "bg-[#ef4444]/10 text-[#ef4444]"}`}>
+                              {credsMsg.text}
+                            </div>
+                          )}
+
+                          {assigning === bp.id && (
+                            <div className="flex items-center gap-2">
+                              <select value={assignEmail} onChange={(e) => setAssignEmail(e.target.value)}
+                                className="rounded-lg border border-[#1e1e2e] bg-[#0a0a0f] px-3 py-1.5 text-xs text-white flex-1 max-w-xs">
+                                <option value="">Select client...</option>
+                                {clients.filter(c => c.email !== "admin@failfast.online").map((c) => (
+                                  <option key={c.id} value={c.email}>{c.email} {c.display_name ? `(${c.display_name})` : ""}</option>
+                                ))}
+                              </select>
+                              <button onClick={() => handleAssign(bp.id)} className="px-3 py-1.5 rounded-lg bg-[#10b981] text-white text-xs font-medium">Assign</button>
+                              <button onClick={() => setAssigning(null)} className="px-3 py-1.5 rounded-lg border border-[#1e1e2e] text-[#9090a8] text-xs">Cancel</button>
+                            </div>
+                          )}
+
+                          {/* Tech Stack */}
+                          {ts && <TechStackView techStack={ts} />}
+
+                          {/* Blueprint Documents */}
+                          {docs && <BlueprintDocsList docs={docs} hasFull={!!fullBp} />}
+
+                          {/* Full Blueprint Tabs */}
+                          {fullBp && <FullBlueprintTabs blueprint={fullBp} />}
+                        </div>
+                      )}
                     </div>
-
-                    {/* Credentials sent confirmation */}
-                    {credsMsg?.id === bp.id && (
-                      <div className={`mt-3 rounded-lg px-3 py-2 text-xs ${credsMsg.ok ? "bg-[#10b981]/10 text-[#10b981]" : "bg-[#ef4444]/10 text-[#ef4444]"}`}>
-                        {credsMsg.text}
-                      </div>
-                    )}
-
-                    {/* Assign dropdown */}
-                    {assigning === bp.id && (
-                      <div className="mt-3 flex items-center gap-2">
-                        <select
-                          value={assignEmail}
-                          onChange={(e) => setAssignEmail(e.target.value)}
-                          className="rounded-lg border border-[#1e1e2e] bg-[#0a0a0f] px-3 py-1.5 text-xs text-white flex-1 max-w-xs"
-                        >
-                          <option value="">Select client...</option>
-                          {clients.filter(c => c.email !== "admin@failfast.online").map((c) => (
-                            <option key={c.id} value={c.email}>
-                              {c.email} {c.display_name ? `(${c.display_name})` : ""}
-                            </option>
-                          ))}
-                        </select>
-                        <button onClick={() => handleAssign(bp.id)} className="px-3 py-1.5 rounded-lg bg-[#10b981] text-white text-xs font-medium">
-                          Assign
-                        </button>
-                        <button onClick={() => setAssigning(null)} className="px-3 py-1.5 rounded-lg border border-[#1e1e2e] text-[#9090a8] text-xs">
-                          Cancel
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -312,9 +302,7 @@ export default function AdminDashboard() {
                       placeholder="Acme Corp" />
                   </div>
                 </div>
-                {createMsg && (
-                  <p className={`text-sm ${createMsg.includes("success") ? "text-[#10b981]" : "text-[#ef4444]"}`}>{createMsg}</p>
-                )}
+                {createMsg && <p className={`text-sm ${createMsg.includes("success") ? "text-[#10b981]" : "text-[#ef4444]"}`}>{createMsg}</p>}
                 <button type="submit" disabled={creating} className="px-5 py-2 rounded-lg text-white text-sm font-medium transition-all" style={{ background: "linear-gradient(135deg, #6C63FF, #7b73ff)" }}>
                   {creating ? "Creating..." : "Create Client"}
                 </button>
@@ -350,5 +338,27 @@ export default function AdminDashboard() {
         )}
       </div>
     </div>
+  );
+}
+
+function StatusBadge({ bp }: { bp: Blueprint }) {
+  if (bp.has_full_blueprint || bp.status === "full") {
+    return (
+      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-[#6C63FF]/10 text-[#a5a0ff] border border-[#6C63FF]/20">
+        Complete
+      </span>
+    );
+  }
+  if (bp.status === "assigned") {
+    return (
+      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20">
+        Assigned
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20">
+      Partial
+    </span>
   );
 }
