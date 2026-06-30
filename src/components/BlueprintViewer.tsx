@@ -156,24 +156,143 @@ export function FullBlueprintTabs({ blueprint }: { blueprint: any }) {
   );
 }
 
-/* ─── Tab Renderers ─── */
+/* ─── Architecture Tab ─── */
 
 function ArchitectureTab({ content }: { content: any }) {
+  const overview = content.overview || "";
+  const diagram = content.diagram || "";
+
+  const paragraphs = overview.split("\n").filter(Boolean);
+  const mainText = paragraphs.filter((p: string) => !p.match(/^[┌└│├─┐┘┴┬┤┼]/));
+
+  const layers = parseArchitectureLayers(overview, diagram);
+
   return (
-    <div className="space-y-4">
-      <div className="text-[#c4c4d8] text-xs leading-relaxed">
-        {content.overview?.split("\n").map((line: string, i: number) => (
+    <div className="space-y-5">
+      <div className="text-sm text-[#c4c4d8] leading-relaxed">
+        {mainText.slice(0, 2).map((line: string, i: number) => (
           <p key={i} className="mb-2">{line}</p>
         ))}
       </div>
-      {content.diagram && (
-        <pre className="rounded-lg bg-[#0a0a0f] border border-[#1e1e2e] p-4 text-[10px] sm:text-xs font-mono text-[#10b981] overflow-x-auto leading-tight">
-          {content.diagram}
+
+      {layers.length > 0 ? (
+        <ArchitectureDiagram layers={layers} />
+      ) : diagram ? (
+        <pre className="rounded-xl bg-[#0a0a0f] border border-[#1e1e2e] p-5 text-[10px] sm:text-xs font-mono text-[#10b981] overflow-x-auto leading-tight">
+          {diagram}
         </pre>
+      ) : null}
+
+      {mainText.length > 2 && (
+        <div className="rounded-xl border border-[#1e1e2e] bg-[#0a0a0f]/60 p-4">
+          <h4 className="text-xs font-semibold text-[#9090a8] mb-3 uppercase tracking-wider">Details</h4>
+          <div className="text-xs text-[#9090a8] leading-relaxed space-y-2">
+            {mainText.slice(2).map((line: string, i: number) => (
+              <p key={i}>{line}</p>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {diagram && layers.length > 0 && (
+        <details className="mt-2">
+          <summary className="text-[10px] text-[#606080] cursor-pointer hover:text-[#9090a8]">View raw diagram</summary>
+          <pre className="mt-2 rounded-lg bg-[#0a0a0f] border border-[#1e1e2e] p-4 text-[10px] font-mono text-[#10b981] overflow-x-auto leading-tight">
+            {diagram}
+          </pre>
+        </details>
       )}
     </div>
   );
 }
+
+/* ─── Architecture Layer Parser + Visual Diagram ─── */
+
+function parseArchitectureLayers(overview: string, diagram: string) {
+  const layers: { name: string; icon: string; color: string; components: { name: string; detail: string }[] }[] = [];
+
+  const layerDefs = [
+    { match: /(?:frontend|client|browser|web app|dashboard|next\.?js|react|tailwind|css)/i, name: "Frontend", icon: "🎨", color: "#8b5cf6" },
+    { match: /(?:backend|api|server|express|node|service|route|next\.?js route)/i, name: "Backend", icon: "⚙️", color: "#06b6d4" },
+    { match: /(?:database|postgresql|postgres|sql|data|storage|db|pgvector)/i, name: "Database", icon: "🗄️", color: "#f97316" },
+    { match: /(?:nginx|proxy|reverse|ssl|tls|cert|traffic|load|domain)/i, name: "Proxy", icon: "🔀", color: "#10b981" },
+    { match: /(?:docker|container|compose|orchestrat|deploy)/i, name: "Orchestration", icon: "🐳", color: "#06b6d4" },
+    { match: /(?:auth|login|jwt|session|password|oauth|nextauth|clerk|bcrypt)/i, name: "Auth", icon: "🔐", color: "#f59e0b" },
+    { match: /(?:email|notification|sms|queue|event|inngest|resend|twilio|workflow)/i, name: "Messaging", icon: "📨", color: "#ec4899" },
+    { match: /(?:monitor|analytics|log|metric|plausible|grafana|sentry)/i, name: "Monitoring", icon: "📊", color: "#f59e0b" },
+    { match: /(?:lighthouse|server|hosting|cloud|infra|tencent|ubuntu)/i, name: "Infrastructure", icon: "☁️", color: "#6366f1" },
+    { match: /(?:payment|stripe|billing|subscription|checkout)/i, name: "Payments", icon: "💳", color: "#14b8a6" },
+    { match: /(?:cdn|storage|s3|r2|upload|file|image|bucket)/i, name: "Storage", icon: "📦", color: "#eab308" },
+    { match: /(?:cache|redis|memcached|queue|bull)/i, name: "Cache", icon: "⚡", color: "#ef4444" },
+    { match: /(?:search|elastic|algolia|typesense|meilisearch)/i, name: "Search", icon: "🔍", color: "#a855f7" },
+    { match: /(?:ai|llm|openai|deepseek|gpt|embedding|machine learn)/i, name: "AI / ML", icon: "🧠", color: "#d946ef" },
+  ];
+
+  const allText = overview + "\n" + diagram;
+  const lines = allText.split("\n").filter(Boolean);
+
+  for (const def of layerDefs) {
+    const relevantLines = lines.filter((line: string) => def.match.test(line));
+    if (relevantLines.length === 0) continue;
+
+    const components = relevantLines.slice(0, 4).map((line: string) => {
+      const cleaned = line.replace(/^[┌└│├─┐┘┴┬┤┼\s]+/, "").trim();
+      const detail = cleaned.length > 60 ? cleaned.slice(0, 60) + "..." : cleaned;
+      return { name: cleaned.slice(0, 30), detail };
+    });
+
+    const existing = layers.find((l) => l.name === def.name);
+    if (existing) {
+      existing.components.push(...components);
+    } else {
+      layers.push({ name: def.name, icon: def.icon, color: def.color, components: components.slice(0, 3) });
+    }
+  }
+
+  if (layers.length === 0 && diagram) {
+    const diagramLines = diagram.split("\n").filter((l: string) => l.trim() && !l.match(/^[┌└│├─┐┘┴┬┤┼\s]+$/));
+    const genericComponents = diagramLines.slice(0, 8).map((line: string) => ({
+      name: line.replace(/^[^a-zA-Z0-9]+/, "").trim().slice(0, 30),
+      detail: line.replace(/^[^a-zA-Z0-9]+/, "").trim().slice(0, 60),
+    }));
+    if (genericComponents.length > 0) {
+      layers.push({ name: "Architecture", icon: "🏗️", color: "#6C63FF", components: genericComponents });
+    }
+  }
+
+  return layers;
+}
+
+function ArchitectureDiagram({ layers }: { layers: any[] }) {
+  return (
+    <div className="space-y-2">
+      {layers.map((layer, i) => (
+        <div key={i} className="rounded-xl border overflow-hidden" style={{ borderColor: `${layer.color}30` }}>
+          <div className="flex items-center gap-2 px-4 py-2.5" style={{ background: `${layer.color}10` }}>
+            <span className="text-sm">{layer.icon}</span>
+            <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: layer.color }}>
+              {layer.name}
+            </span>
+            <span className="ml-auto text-[10px] text-[#606080]">{layer.components.length} component{layer.components.length !== 1 ? "s" : ""}</span>
+          </div>
+          <div className="p-3 space-y-1.5 bg-[#0a0a0f]/60">
+            {layer.components.map((comp: any, j: number) => (
+              <div key={j} className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-[11px] bg-[#111118] border border-[#1e1e2e] hover:border-opacity-50 transition-all">
+                <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: layer.color }} />
+                <span className="text-white font-medium truncate">{comp.name}</span>
+                {comp.detail !== comp.name && (
+                  <span className="text-[#606080] truncate hidden sm:inline">{comp.detail}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ─── Schema Tab ─── */
 
 function SchemaTab({ content }: { content: any }) {
   const tables = content.tables || [];
@@ -194,6 +313,8 @@ function SchemaTab({ content }: { content: any }) {
   );
 }
 
+/* ─── API Tab ─── */
+
 function ApiTab({ content }: { content: any }) {
   const endpoints = content.endpoints || [];
   return (
@@ -201,10 +322,10 @@ function ApiTab({ content }: { content: any }) {
       <table className="w-full text-xs">
         <thead>
           <tr className="border-b border-[#1e1e2e]">
-            <th className="text-left py-2 px-3 text-[#9090a8] font-medium">Method</th>
+            <th className="text-left py-2 px-3 text-[#9090a8] font-medium w-[60px]">Method</th>
             <th className="text-left py-2 px-3 text-[#9090a8] font-medium">Path</th>
             <th className="text-left py-2 px-3 text-[#9090a8] font-medium">Purpose</th>
-            <th className="text-left py-2 px-3 text-[#9090a8] font-medium">Auth</th>
+            <th className="text-left py-2 px-3 text-[#9090a8] font-medium w-[50px]">Auth</th>
           </tr>
         </thead>
         <tbody>
@@ -230,6 +351,8 @@ function ApiTab({ content }: { content: any }) {
     </div>
   );
 }
+
+/* ─── Phases Tab ─── */
 
 function PhasesTab({ content }: { content: any }) {
   const phases = Array.isArray(content) ? content : [];
@@ -259,6 +382,8 @@ function PhasesTab({ content }: { content: any }) {
   );
 }
 
+/* ─── Scale Tab ─── */
+
 function ScaleTab({ content }: { content: any }) {
   const phases = Array.isArray(content) ? content : [];
   return (
@@ -284,6 +409,8 @@ function ScaleTab({ content }: { content: any }) {
     </div>
   );
 }
+
+/* ─── Costs Tab ─── */
 
 function CostsTab({ content }: { content: any }) {
   return (
@@ -314,6 +441,8 @@ function CostsTab({ content }: { content: any }) {
   );
 }
 
+/* ─── Security Tab ─── */
+
 function SecurityTab({ content }: { content: any }) {
   return (
     <div className="space-y-4">
@@ -342,6 +471,8 @@ function SecurityTab({ content }: { content: any }) {
     </div>
   );
 }
+
+/* ─── GTM Tab ─── */
 
 function GtmTab({ content }: { content: any }) {
   return (
