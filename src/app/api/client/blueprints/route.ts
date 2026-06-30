@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const result = await pool.query(
-      `SELECT id, app_name, app_description, industry, status, tech_stack, created_at, updated_at
+      `SELECT id, app_name, app_description, industry, status, tech_stack, full_blueprint, created_at, updated_at
        FROM blueprints 
        WHERE assigned_to = $1
        ORDER BY created_at DESC`,

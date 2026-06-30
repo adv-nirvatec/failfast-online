@@ -23,6 +23,8 @@ interface BlueprintInput {
 export async function generateBlueprint(input: BlueprintInput) {
   const systemPrompt = `You are a senior solution architect at Nirvatec Industries. Your job is to produce detailed, actionable app blueprints for non-technical founders.
 
+CRITICAL INFRASTRUCTURE CONSTRAINT: All apps are deployed on Tencent Cloud Lighthouse servers (Ubuntu 24.04, Docker, Nginx). NEVER recommend Vercel, Netlify, Supabase, Railway, Heroku, or any PaaS platform. Self-host everything on Lighthouse with Docker. Use PostgreSQL (not hosted DB services). Use systemd or Docker Compose for orchestration. The stack must be deployable with a single 'docker compose up -d --build'.
+
 Given a founder's app description, produce a BLUEPRINT with TWO output sections:
 
 ## SECTION 1: TECH STACK (VISIBLE TO USER)
@@ -35,9 +37,11 @@ Format as a structured JSON object with these keys:
     "frontend": [{ "layer": "Framework", "tech": "Next.js 15", "reason": "One sentence why" }],
     "backend": [{ "layer": "...", "tech": "...", "reason": "..." }],
     "database": [{ "layer": "...", "tech": "...", "reason": "..." }],
-    "infrastructure": [{ "layer": "...", "tech": "...", "reason": "..." }],
+    "infrastructure": [{ "layer": "Hosting", "tech": "Tencent Cloud Lighthouse", "reason": "..." }, 
+                       { "layer": "Reverse Proxy", "tech": "Nginx + Let's Encrypt", "reason": "..." },
+                       { "layer": "Orchestration", "tech": "Docker Compose", "reason": "..." }],
     "integrations": [{ "layer": "...", "tech": "...", "reason": "..." }],
-    "mvpCost": "Estimated monthly burn for MVP in USD (single number with $ sign, e.g. '$25-50/mo')",
+    "mvpCost": "Estimated monthly burn for MVP in USD (single number, e.g. '$35-50/mo')",
     "scaleUpCost": "Estimated monthly burn at scale in USD",
     "timeToMvp": "e.g. '4-6 weeks'",
     "summarySentence": "One compelling sentence explaining the tech approach in plain English"
@@ -62,13 +66,13 @@ Return them as:
 }
 
 RULES:
-- Tech must be realistic and production-proven. No vaporware.
-- Prefer open-source or affordable solutions for MVP.
+- NEVER recommend Vercel, Netlify, Supabase, Railway, Heroku, or any cloud PaaS.
+- Self-host everything: Docker + Nginx on Tencent Lighthouse.
+- PostgreSQL is self-hosted in Docker, not a service.
 - Match tech to the app's specific needs — don't copy-paste generic stacks.
 - The summarySentence MUST be compelling and non-technical.
 - Keep reasons short — one sentence each max.
-- Output ONLY valid JSON — no markdown wrapping, no code blocks.
-- If the app involves AI/ML, budget for API costs separately in the cost estimate.`;
+- Output ONLY valid JSON — no markdown wrapping, no code blocks.`;
 
   const userPrompt = `Generate a blueprint for the following app:
 
@@ -106,9 +110,9 @@ ${input.constraints?.scale ? `EXPECTED SCALE: ${input.constraints.scale}` : ""}`
 }
 
 export async function generateFullBlueprint(input: BlueprintInput, techStack: any) {
-  const systemPrompt = `You are a senior solution architect at Nirvatec Industries. You are generating the FULL blueprint documentation for a client who has already seen their tech stack preview.
+  const systemPrompt = `You are a senior solution architect at Nirvatec Industries. You are generating the FULL blueprint documentation for a client.
 
-Given the app description and their chosen tech stack, produce detailed documentation in the same style as professional solution architecture blueprints.
+CRITICAL: All hosting is on Tencent Cloud Lighthouse (Docker + Nginx). Never mention Vercel, Supabase, Railway, or any PaaS. Self-host everything.
 
 Output valid JSON with these sections:
 
