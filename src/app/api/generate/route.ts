@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateBlueprint } from "@/lib/blueprint-generator";
+import { generateBlueprint, generateFullBlueprint } from "@/lib/blueprint-generator";
 import { initDB } from "@/lib/db";
 import pool from "@/lib/db";
-import { ensureAdmin } from "@/lib/auth";
-
-// Simple in-memory rate limit fallback
-const ipCounts = new Map<string, { count: number; resetAt: number }>();
+import { ensureAdmin, hashPassword } from "@/lib/auth";
+import crypto from "crypto";
 
 let initialized = false;
 
@@ -44,7 +42,6 @@ export async function POST(req: NextRequest) {
     const rateKey = ip.split(",")[0].trim();
     const maxPerHour = parseInt(process.env.RATE_LIMIT_PER_HOUR || "5");
 
-    // DB-based rate limit
     const windowStart = new Date(Date.now() - 60 * 60 * 1000);
     await pool.query(
       `INSERT INTO rate_limits (ip_address, action, window_start, count) 
@@ -53,7 +50,6 @@ export async function POST(req: NextRequest) {
       [rateKey]
     );
 
-    // Clean up old rate limit rows
     await pool.query("DELETE FROM rate_limits WHERE window_start < $1", [windowStart]);
 
     const rateResult = await pool.query(
@@ -69,7 +65,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Sanitize inputs (length limits)
+    // Sanitize inputs
     const sanitizedInput = {
       appName: (appName as string).slice(0, 100),
       appDescription: (appDescription as string).slice(0, 2000),
@@ -85,17 +81,54 @@ export async function POST(req: NextRequest) {
       } : undefined,
     };
 
-    // Generate blueprint
+    const sanitizedEmail = (clientEmail as string)?.slice(0, 200)?.trim()?.toLowerCase() || null;
+    const sanitizedName = (clientName as string)?.slice(0, 100)?.trim() || null;
+
+    // Step 1: Generate tech stack (visible to user immediately)
     const result = await generateBlueprint(sanitizedInput);
 
-    // Store in DB
+    // Step 2: Auto-generate full blueprint in background
+    let fullBlueprintJson = null;
+    try {
+      fullBlueprintJson = await generateFullBlueprint(sanitizedInput, result.techStack);
+    } catch (e) {
+      console.error("Full blueprint generation failed (non-blocking):", e);
+    }
+
+    // Step 3: Auto-create client account if email provided
+    let clientId: string | null = null;
+    let tempPassword: string | null = null;
+
+    if (sanitizedEmail) {
+      const existingClient = await pool.query("SELECT id FROM clients WHERE email = $1", [sanitizedEmail]);
+      
+      if (existingClient.rows.length > 0) {
+        clientId = existingClient.rows[0].id;
+      } else {
+        // Create new client with a random temp password
+        tempPassword = crypto.randomBytes(8).toString("hex");
+        const passwordHash = hashPassword(tempPassword);
+
+        const newClient = await pool.query(
+          `INSERT INTO clients (email, password_hash, display_name, company) 
+           VALUES ($1, $2, $3, $4) 
+           ON CONFLICT (email) DO UPDATE SET display_name = $3
+           RETURNING id`,
+          [sanitizedEmail, passwordHash, sanitizedName, null]
+        );
+        clientId = newClient.rows[0].id;
+      }
+    }
+
+    // Step 4: Store blueprint with full data and client assignment
     const insertResult = await pool.query(
-      `INSERT INTO blueprints (client_name, client_email, app_name, app_description, industry, target_users, core_features, constraints, tech_stack, ip_address, rate_limit_key)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      `INSERT INTO blueprints (client_name, client_email, app_name, app_description, industry, target_users, 
+        core_features, constraints, tech_stack, full_blueprint, assigned_to, status, ip_address, rate_limit_key)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING id`,
       [
-        (clientName as string)?.slice(0, 100) || null,
-        (clientEmail as string)?.slice(0, 200) || null,
+        sanitizedName,
+        sanitizedEmail,
         sanitizedInput.appName,
         sanitizedInput.appDescription.slice(0, 1000),
         sanitizedInput.industry || null,
@@ -103,6 +136,9 @@ export async function POST(req: NextRequest) {
         sanitizedInput.coreFeatures || null,
         JSON.stringify(sanitizedInput.constraints || {}),
         JSON.stringify(result),
+        fullBlueprintJson ? JSON.stringify(fullBlueprintJson) : null,
+        clientId,
+        clientId ? "full" : "partial",
         rateKey,
         rateKey,
       ]
@@ -113,6 +149,9 @@ export async function POST(req: NextRequest) {
       blueprintId: insertResult.rows[0].id,
       techStack: result.techStack,
       blueprintDocuments: result.blueprintDocuments,
+      hasFullBlueprint: !!fullBlueprintJson,
+      clientCreated: !!clientId && !!tempPassword,
+      accountReady: !!clientId,
     });
   } catch (error: any) {
     console.error("Blueprint generation error:", error);

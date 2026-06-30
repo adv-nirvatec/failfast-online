@@ -14,6 +14,7 @@ interface Blueprint {
   status: string;
   assigned_to: string | null;
   created_at: string;
+  full_blueprint?: any;
 }
 
 interface Client {
@@ -30,13 +31,14 @@ export default function AdminDashboard() {
   const [blueprints, setBlueprints] = useState<Blueprint[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [tab, setTab] = useState<"blueprints" | "clients">("blueprints");
   const [assigning, setAssigning] = useState<string | null>(null);
   const [assignEmail, setAssignEmail] = useState("");
   const [newClient, setNewClient] = useState({ email: "", password: "", displayName: "", company: "" });
   const [creating, setCreating] = useState(false);
   const [createMsg, setCreateMsg] = useState("");
+  const [sendingCreds, setSendingCreds] = useState<string | null>(null);
+  const [credsMsg, setCredsMsg] = useState<{ id: string; text: string; ok: boolean } | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -48,7 +50,7 @@ export default function AdminDashboard() {
       setBlueprints(await bpRes.json());
       setClients(await clRes.json());
     } catch (err: any) {
-      setError(err.message);
+      // silent
     } finally {
       setLoading(false);
     }
@@ -71,6 +73,26 @@ export default function AdminDashboard() {
       fetchData();
     } catch (err: any) {
       alert(err.message);
+    }
+  };
+
+  const handleSendCredentials = async (blueprintId: string) => {
+    setSendingCreds(blueprintId);
+    setCredsMsg(null);
+    try {
+      const res = await fetch("/api/admin/send-credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blueprintId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setCredsMsg({ id: blueprintId, text: `✅ Email sent to ${data.clientEmail}`, ok: true });
+      fetchData();
+    } catch (err: any) {
+      setCredsMsg({ id: blueprintId, text: `❌ ${err.message}`, ok: false });
+    } finally {
+      setSendingCreds(null);
     }
   };
 
@@ -109,9 +131,30 @@ export default function AdminDashboard() {
     );
   }
 
+  const statusBadge = (bp: Blueprint) => {
+    if (bp.status === "full" || bp.full_blueprint) {
+      return (
+        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-[#6C63FF]/10 text-[#a5a0ff] border border-[#6C63FF]/20">
+          Complete
+        </span>
+      );
+    }
+    if (bp.status === "assigned") {
+      return (
+        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20">
+          Assigned
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20">
+        Partial
+      </span>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0a0f]">
-      {/* Header */}
       <header className="border-b border-[#1e1e2e] bg-[#111118]">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -125,6 +168,9 @@ export default function AdminDashboard() {
             <Link href="/portal/client" className="text-sm text-[#9090a8] hover:text-white transition-colors">
               Client View
             </Link>
+            <Link href="/" className="text-sm text-[#9090a8] hover:text-white transition-colors">
+              Generator
+            </Link>
             <button onClick={handleLogout} className="text-sm text-[#606080] hover:text-[#ef4444] transition-colors">
               Sign Out
             </button>
@@ -133,22 +179,11 @@ export default function AdminDashboard() {
       </header>
 
       <div className="max-w-6xl mx-auto px-6 py-8">
-        {/* Tabs */}
         <div className="flex gap-1 mb-8 rounded-xl bg-[#111118] border border-[#1e1e2e] p-1 w-fit">
-          <button
-            onClick={() => setTab("blueprints")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              tab === "blueprints" ? "bg-[#6C63FF] text-white" : "text-[#9090a8] hover:text-white"
-            }`}
-          >
+          <button onClick={() => setTab("blueprints")} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === "blueprints" ? "bg-[#6C63FF] text-white" : "text-[#9090a8] hover:text-white"}`}>
             📋 Blueprints ({blueprints.length})
           </button>
-          <button
-            onClick={() => setTab("clients")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              tab === "clients" ? "bg-[#6C63FF] text-white" : "text-[#9090a8] hover:text-white"
-            }`}
-          >
+          <button onClick={() => setTab("clients")} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === "clients" ? "bg-[#6C63FF] text-white" : "text-[#9090a8] hover:text-white"}`}>
             👥 Clients ({clients.length})
           </button>
         </div>
@@ -161,27 +196,14 @@ export default function AdminDashboard() {
                 <p className="text-sm mt-1">Generated blueprints will appear here.</p>
               </div>
             ) : (
-              <div className="grid gap-4">
+              <div className="grid gap-3">
                 {blueprints.map((bp) => (
-                  <div
-                    key={bp.id}
-                    className="rounded-xl border border-[#1e1e2e] bg-[#111118] p-5 hover:border-[#6C63FF]/20 transition-all"
-                  >
+                  <div key={bp.id} className="rounded-xl border border-[#1e1e2e] bg-[#111118] p-5 hover:border-[#6C63FF]/20 transition-all">
                     <div className="flex items-start justify-between gap-4 flex-wrap">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-3 mb-1.5">
                           <h3 className="text-base font-semibold text-white">{bp.app_name}</h3>
-                          <span
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                              bp.status === "partial"
-                                ? "bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20"
-                                : bp.status === "assigned"
-                                ? "bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20"
-                                : "bg-[#6C63FF]/10 text-[#6C63FF] border border-[#6C63FF]/20"
-                            }`}
-                          >
-                            {bp.status}
-                          </span>
+                          {statusBadge(bp)}
                         </div>
                         <p className="text-sm text-[#9090a8] line-clamp-2 mb-2">{bp.app_description}</p>
                         <div className="flex items-center gap-3 text-xs text-[#606080] flex-wrap">
@@ -192,44 +214,66 @@ export default function AdminDashboard() {
                         </div>
                       </div>
 
-                      <div className="shrink-0">
-                        {assigning === bp.id ? (
-                          <div className="flex items-center gap-2">
-                            <select
-                              value={assignEmail}
-                              onChange={(e) => setAssignEmail(e.target.value)}
-                              className="rounded-lg border border-[#1e1e2e] bg-[#0a0a0f] px-3 py-1.5 text-xs text-white"
-                            >
-                              <option value="">Select client...</option>
-                              {clients.filter(c => c.email !== "admin@blueprints.nirvatec.com").map((c) => (
-                                <option key={c.id} value={c.email}>
-                                  {c.email} {c.display_name ? `(${c.display_name})` : ""}
-                                </option>
-                              ))}
-                            </select>
+                      <div className="shrink-0 flex flex-wrap items-center gap-2">
+                        {/* Send Credentials button — visible when blueprint has email and full blueprint */}
+                        {bp.client_email && (
+                          sendingCreds === bp.id ? (
+                            <span className="px-3 py-1.5 rounded-lg bg-[#f59e0b]/10 text-[#f59e0b] text-xs flex items-center gap-1">
+                              <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                              </svg>
+                              Sending...
+                            </span>
+                          ) : (
                             <button
-                              onClick={() => handleAssign(bp.id)}
-                              className="px-3 py-1.5 rounded-lg bg-[#10b981] text-white text-xs font-medium"
+                              onClick={() => handleSendCredentials(bp.id)}
+                              className="px-3 py-1.5 rounded-lg bg-[#10b981]/10 border border-[#10b981]/30 text-[#10b981] text-xs font-medium hover:bg-[#10b981]/20 transition-all"
+                              title="Email client login credentials"
                             >
-                              Assign
+                              📧 Send Login
                             </button>
-                            <button
-                              onClick={() => setAssigning(null)}
-                              className="px-3 py-1.5 rounded-lg border border-[#1e1e2e] text-[#9090a8] text-xs"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setAssigning(bp.id)}
-                            className="px-4 py-2 rounded-lg border border-[#6C63FF]/30 text-[#a5a0ff] text-xs font-medium hover:bg-[#6C63FF]/10 transition-all"
-                          >
-                            {bp.status === "assigned" ? "Reassign" : "Assign to Client"}
-                          </button>
+                          )
                         )}
+                        <button
+                          onClick={() => setAssigning(bp.id)}
+                          className="px-3 py-1.5 rounded-lg border border-[#6C63FF]/30 text-[#a5a0ff] text-xs font-medium hover:bg-[#6C63FF]/10 transition-all"
+                        >
+                          {bp.assigned_to ? "Reassign" : "Assign"}
+                        </button>
                       </div>
                     </div>
+
+                    {/* Credentials sent confirmation */}
+                    {credsMsg?.id === bp.id && (
+                      <div className={`mt-3 rounded-lg px-3 py-2 text-xs ${credsMsg.ok ? "bg-[#10b981]/10 text-[#10b981]" : "bg-[#ef4444]/10 text-[#ef4444]"}`}>
+                        {credsMsg.text}
+                      </div>
+                    )}
+
+                    {/* Assign dropdown */}
+                    {assigning === bp.id && (
+                      <div className="mt-3 flex items-center gap-2">
+                        <select
+                          value={assignEmail}
+                          onChange={(e) => setAssignEmail(e.target.value)}
+                          className="rounded-lg border border-[#1e1e2e] bg-[#0a0a0f] px-3 py-1.5 text-xs text-white flex-1 max-w-xs"
+                        >
+                          <option value="">Select client...</option>
+                          {clients.filter(c => c.email !== "admin@failfast.online").map((c) => (
+                            <option key={c.id} value={c.email}>
+                              {c.email} {c.display_name ? `(${c.display_name})` : ""}
+                            </option>
+                          ))}
+                        </select>
+                        <button onClick={() => handleAssign(bp.id)} className="px-3 py-1.5 rounded-lg bg-[#10b981] text-white text-xs font-medium">
+                          Assign
+                        </button>
+                        <button onClick={() => setAssigning(null)} className="px-3 py-1.5 rounded-lg border border-[#1e1e2e] text-[#9090a8] text-xs">
+                          Cancel
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -239,71 +283,44 @@ export default function AdminDashboard() {
 
         {tab === "clients" && (
           <div className="space-y-8">
-            {/* Create Client Form */}
             <div className="rounded-xl border border-[#1e1e2e] bg-[#111118] p-6">
               <h3 className="text-sm font-semibold text-white mb-4">Create New Client</h3>
               <form onSubmit={handleCreateClient} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs text-[#9090a8] mb-1">Email *</label>
-                    <input
-                      type="email"
-                      required
-                      value={newClient.email}
-                      onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
+                    <input type="email" required value={newClient.email} onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
                       className="w-full rounded-lg border border-[#1e1e2e] bg-[#0a0a0f] px-3 py-2 text-sm text-white placeholder:text-[#606080] focus:outline-none focus:border-[#6C63FF]/50"
-                      placeholder="client@company.com"
-                    />
+                      placeholder="client@company.com" />
                   </div>
                   <div>
                     <label className="block text-xs text-[#9090a8] mb-1">Password *</label>
-                    <input
-                      type="password"
-                      required
-                      value={newClient.password}
-                      onChange={(e) => setNewClient({ ...newClient, password: e.target.value })}
+                    <input type="password" required value={newClient.password} onChange={(e) => setNewClient({ ...newClient, password: e.target.value })}
                       className="w-full rounded-lg border border-[#1e1e2e] bg-[#0a0a0f] px-3 py-2 text-sm text-white placeholder:text-[#606080] focus:outline-none focus:border-[#6C63FF]/50"
-                      placeholder="••••••••"
-                    />
+                      placeholder="••••••••" />
                   </div>
                   <div>
                     <label className="block text-xs text-[#9090a8] mb-1">Display Name</label>
-                    <input
-                      type="text"
-                      value={newClient.displayName}
-                      onChange={(e) => setNewClient({ ...newClient, displayName: e.target.value })}
+                    <input type="text" value={newClient.displayName} onChange={(e) => setNewClient({ ...newClient, displayName: e.target.value })}
                       className="w-full rounded-lg border border-[#1e1e2e] bg-[#0a0a0f] px-3 py-2 text-sm text-white placeholder:text-[#606080] focus:outline-none focus:border-[#6C63FF]/50"
-                      placeholder="John Doe"
-                    />
+                      placeholder="John Doe" />
                   </div>
                   <div>
                     <label className="block text-xs text-[#9090a8] mb-1">Company</label>
-                    <input
-                      type="text"
-                      value={newClient.company}
-                      onChange={(e) => setNewClient({ ...newClient, company: e.target.value })}
+                    <input type="text" value={newClient.company} onChange={(e) => setNewClient({ ...newClient, company: e.target.value })}
                       className="w-full rounded-lg border border-[#1e1e2e] bg-[#0a0a0f] px-3 py-2 text-sm text-white placeholder:text-[#606080] focus:outline-none focus:border-[#6C63FF]/50"
-                      placeholder="Acme Corp"
-                    />
+                      placeholder="Acme Corp" />
                   </div>
                 </div>
                 {createMsg && (
-                  <p className={`text-sm ${createMsg.includes("success") ? "text-[#10b981]" : "text-[#ef4444]"}`}>
-                    {createMsg}
-                  </p>
+                  <p className={`text-sm ${createMsg.includes("success") ? "text-[#10b981]" : "text-[#ef4444]"}`}>{createMsg}</p>
                 )}
-                <button
-                  type="submit"
-                  disabled={creating}
-                  className="px-5 py-2 rounded-lg text-white text-sm font-medium transition-all"
-                  style={{ background: "linear-gradient(135deg, #6C63FF, #7b73ff)" }}
-                >
+                <button type="submit" disabled={creating} className="px-5 py-2 rounded-lg text-white text-sm font-medium transition-all" style={{ background: "linear-gradient(135deg, #6C63FF, #7b73ff)" }}>
                   {creating ? "Creating..." : "Create Client"}
                 </button>
               </form>
             </div>
 
-            {/* Client List */}
             <div>
               <h3 className="text-sm font-semibold text-white mb-4">Existing Clients</h3>
               {clients.length === 0 ? (
@@ -311,20 +328,15 @@ export default function AdminDashboard() {
               ) : (
                 <div className="grid gap-2">
                   {clients.map((c) => (
-                    <div
-                      key={c.id}
-                      className="flex items-center justify-between rounded-lg border border-[#1e1e2e] bg-[#111118] px-4 py-3"
-                    >
+                    <div key={c.id} className="flex items-center justify-between rounded-lg border border-[#1e1e2e] bg-[#111118] px-4 py-3">
                       <div>
                         <p className="text-sm text-white font-medium">
                           {c.display_name || c.email}
-                          {c.email === "admin@blueprints.nirvatec.com" && (
+                          {c.email === "admin@failfast.online" && (
                             <span className="ml-2 text-[10px] bg-[#6C63FF]/20 text-[#a5a0ff] px-1.5 py-0.5 rounded">Admin</span>
                           )}
                         </p>
-                        <p className="text-xs text-[#606080]">
-                          {c.email} {c.company ? `· ${c.company}` : ""}
-                        </p>
+                        <p className="text-xs text-[#606080]">{c.email} {c.company ? `· ${c.company}` : ""}</p>
                       </div>
                       <div className="text-xs text-[#606080]">
                         {c.last_login ? `Last login: ${new Date(c.last_login).toLocaleDateString()}` : "Never logged in"}
