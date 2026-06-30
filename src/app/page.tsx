@@ -96,35 +96,35 @@ export default function LandingPage() {
 function Hero() {
   return (
     <header className="relative overflow-hidden border-b border-[#1e1e2e]">
-      {/* Gradient bg */}
       <div className="absolute inset-0 bg-gradient-to-br from-[#6C63FF]/5 via-transparent to-[#06b6d4]/5" />
       <div className="absolute top-20 right-0 w-96 h-96 bg-[#6C63FF]/10 rounded-full blur-3xl" />
       <div className="absolute bottom-0 left-1/4 w-64 h-64 bg-[#06b6d4]/10 rounded-full blur-3xl" />
 
       <div className="relative max-w-6xl mx-auto px-6 py-20 sm:py-28 lg:py-32">
         <div className="max-w-3xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#6C63FF]/20 bg-[#6C63FF]/5 text-sm text-[#a5a0ff] mb-6">
-            <span className="w-2 h-2 rounded-full bg-[#6C63FF] animate-pulse" />
-            Powered by AI
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#10b981]/20 bg-[#10b981]/5 text-sm text-[#10b981] mb-6">
+            <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
+            Validate before you build
           </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] mb-6">
-            <span className="text-white">Your App Idea,</span>
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.05] mb-6">
+            <span className="text-white">Fail fast</span>
             <br />
             <span className="bg-gradient-to-r from-[#6C63FF] to-[#06b6d4] bg-clip-text text-transparent">
-              Blueprinted in Minutes
+              before you build slow.
             </span>
           </h1>
           <p className="text-lg sm:text-xl text-[#9090a8] leading-relaxed max-w-2xl">
-            Describe your app. Our AI solution architect generates a detailed tech stack, 
-            architecture plan, and build roadmap — so you can go from idea to MVP with clarity.
+            Turn your app idea into a practical MVP blueprint, usable by agentic AI to build a lean, 
+            testable version fast. FailFast helps you validate product-market fit before spending weeks 
+            overbuilding something the market may not want.
           </p>
           <div className="flex items-center gap-4 mt-8">
             <a
               href="#generate"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-white font-semibold transition-all duration-200"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-white font-semibold transition-all duration-200 hover:shadow-lg hover:shadow-[#6C63FF]/20"
               style={{ background: "linear-gradient(135deg, #6C63FF, #7b73ff)" }}
             >
-              Generate My Blueprint
+              Create My MVP Blueprint
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
               </svg>
@@ -146,26 +146,59 @@ function Hero() {
 
 function HowItWorks() {
   const steps = [
-    { num: "01", title: "Describe Your App", desc: "Tell us what it does, who it's for, and what features you need. Plain English — no tech jargon required.", icon: "✍️" },
-    { num: "02", title: "AI Generates Blueprint", desc: "Our solution architect AI picks the right tech stack for your specific needs. MVP first, scale later.", icon: "🧠" },
-    { num: "03", title: "Get Clarity", desc: "See exactly what to build, how much it costs, and how long it takes. Enough detail to start development.", icon: "📋" },
-    { num: "04", title: "Talk to Us", desc: "Want the full blueprint docs + expert guidance? Book a consult. We'll help you build it right.", icon: "🤝" },
+    {
+      num: "01",
+      title: "Blueprint the MVP",
+      icon: "🧬",
+      color: "#6C63FF",
+      desc: "Describe your idea, audience, core features, budget, timeline, and platform. FailFast generates:",
+      outputs: ["MVP scope", "Tech stack", "Core modules", "Database plan", "User flows", "Build sequence", "Scale-up notes"],
+    },
+    {
+      num: "02",
+      title: "Build with Agentic AI",
+      icon: "🤖",
+      color: "#f59e0b",
+      desc: "Your blueprint becomes an agent-ready implementation brief. AI can generate the core pieces — or our team builds it for you.",
+      outputs: ["Frontend", "Backend", "Database schema", "Auth flow", "Admin panel", "Deployment path", "Product screens"],
+    },
+    {
+      num: "03",
+      title: "Test Product-Market Fit",
+      icon: "🎯",
+      color: "#10b981",
+      desc: "Use the MVP to test real demand before investing more. Validate what matters:",
+      outputs: ["Do users understand it?", "Do they sign up?", "Do they complete the core action?", "Do they return?", "Do they pay?", "Which features matter?"],
+    },
   ];
 
   return (
     <section className="max-w-6xl mx-auto px-6 py-20 sm:py-24">
       <div className="text-center mb-14">
         <h2 className="text-3xl sm:text-4xl font-bold text-white mb-3">How It Works</h2>
-        <p className="text-[#9090a8] text-lg">Four steps from idea to build-ready plan.</p>
+        <p className="text-[#9090a8] text-lg">Three steps from idea to validated product.</p>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {steps.map((step) => (
           <div key={step.num} className="relative group">
-            <div className={`rounded-2xl border ${COLORS.border} ${COLORS.card} p-6 h-full transition-all duration-300 ${COLORS.cardHover}`}>
+            <div
+              className={`rounded-2xl border ${COLORS.border} ${COLORS.card} p-6 h-full transition-all duration-300 ${COLORS.cardHover}`}
+              style={{ borderTopColor: step.color, borderTopWidth: 3 }}
+            >
               <div className="text-3xl mb-4">{step.icon}</div>
-              <div className="text-xs font-bold text-[#6C63FF] mb-2">{step.num}</div>
+              <div className="text-xs font-bold mb-2" style={{ color: step.color }}>{step.num}</div>
               <h3 className="text-lg font-semibold text-white mb-2">{step.title}</h3>
-              <p className="text-sm text-[#9090a8] leading-relaxed">{step.desc}</p>
+              <p className="text-sm text-[#9090a8] leading-relaxed mb-4">{step.desc}</p>
+              <div className="border-t border-[#1e1e2e] pt-4">
+                <ul className="space-y-1.5">
+                  {step.outputs.map((item) => (
+                    <li key={item} className="text-xs text-[#606080] flex items-start gap-2">
+                      <span className="mt-0.5 shrink-0" style={{ color: step.color }}>✓</span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           </div>
         ))}
@@ -605,10 +638,10 @@ function BlueprintResultCard({ result, form, consultSent, sendingConsult, onCons
 
         {/* CTA */}
         <div className={`mt-6 rounded-xl border border-[#6C63FF]/20 bg-gradient-to-br from-[#6C63FF]/10 to-[#06b6d4]/5 p-5 sm:p-6 text-center`}>
-          <h4 className="text-lg font-bold text-white mb-2">Want the Full Blueprint?</h4>
+          <h4 className="text-lg font-bold text-white mb-2">Ready to Build?</h4>
           <p className="text-sm text-[#a5a0ff] mb-4 max-w-md mx-auto">
-            Get complete architecture docs, database schema, API design, build phases, and expert guidance 
-            from the FailFast team.
+            Get the full agent-ready blueprint. Our team can use it to build your MVP with AI — 
+            or you can take it to your own development workflow.
           </p>
           <div className="flex items-center justify-center gap-3 flex-wrap">
             {consultSent ? (
@@ -649,7 +682,6 @@ function Footer() {
       <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-2 text-sm text-[#9090a8]">
           <span className="text-[#6C63FF] font-bold">FailFast</span>
-          <span>Blueprints</span>
         </div>
         <div className="flex items-center gap-6 text-sm text-[#606080]">
           <Link href="/portal/login" className="hover:text-[#a5a0ff] transition-colors">
