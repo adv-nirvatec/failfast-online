@@ -701,21 +701,22 @@ function Footer() {
 function TechStackSvg({ sections }: { sections: { key: string; label: string; icon: string; color: string; items: { layer: string; tech: string; reason: string }[] }[] }) {
   if (sections.length === 0) return null;
 
-  const NODE_W = 155;
-  const NODE_H = 58;
-  const GAP_X = 16;
-  const GAP_Y = 16;
-  const PAD = 12;
-  const LABEL_X = 50;
+  const NODE_W = 180;
+  const NODE_H = 64;
+  const GAP_X = 14;
+  const GAP_Y = 32;
+  const PAD = 14;
+  const LABEL_W = 82;
+  const LABEL_X = LABEL_W;
 
   // Calculate SVG dimensions
   const maxItems = Math.max(...sections.map(s => s.items.length));
-  const svgW = Math.max(600, maxItems * NODE_W + (maxItems - 1) * GAP_X + PAD * 2 + LABEL_X);
+  const svgW = Math.max(640, maxItems * NODE_W + (maxItems - 1) * GAP_X + PAD * 2 + LABEL_W);
   const svgH = sections.length * NODE_H + (sections.length - 1) * GAP_Y + PAD * 2;
 
   return (
     <div className="overflow-x-auto">
-      <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full" xmlns="http://www.w3.org/2000/svg" style={{ minWidth: 500 }}>
+      <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full" xmlns="http://www.w3.org/2000/svg" style={{ minWidth: 520 }}>
         <defs>
           {sections.map(s => (
             <linearGradient key={`g-${s.key}`} id={`tsgrad-${s.key}`} x1="0%" y1="0%" x2="100%" y2="100%">
@@ -728,52 +729,63 @@ function TechStackSvg({ sections }: { sections: { key: string; label: string; ic
           </filter>
         </defs>
 
+        {/* Vertical guide lines for each section */}
+        {sections.map((section, row) => {
+          const labelCy = PAD + row * (NODE_H + GAP_Y) + NODE_H / 2;
+          return (
+            <line key={`guide-${row}`} x1={PAD} y1={labelCy + 8} x2={svgW - PAD} y2={labelCy + 8}
+              stroke={`${section.color}08`} strokeWidth="1" />
+          );
+        })}
+
         {sections.map((section, row) => {
           const y = PAD + row * (NODE_H + GAP_Y);
           const isCylinder = section.key === "database";
           const isCloud = section.key === "infrastructure" || section.key === "integrations";
+          const labelCy = y + NODE_H / 2;
 
           return (
             <g key={section.key}>
-              {/* Section label */}
-              <text x={PAD} y={y + NODE_H / 2 + 1} fontSize="11" fontWeight="600" fill={section.color} fontFamily="system-ui, sans-serif" textAnchor="start" dominantBaseline="middle">
-                {section.label}
+              {/* Section label with background pill for readability */}
+              <rect x={PAD - 2} y={labelCy - 12} width={LABEL_W - 8} height={24} rx={8} fill={`${section.color}0A`} />
+              <text x={PAD + LABEL_W / 2 - 6} y={labelCy + 1} fontSize="10" fontWeight="700" fill={section.color}
+                fontFamily="system-ui, sans-serif" textAnchor="middle" dominantBaseline="middle" letterSpacing="0.05em">
+                {section.label.toUpperCase()}
               </text>
-
-              {/* Connecting line from label to first node */}
-              <line x1={LABEL_X - 12} y1={y + NODE_H / 2} x2={LABEL_X + 4} y2={y + NODE_H / 2} stroke={`${section.color}30`} strokeWidth="1.5" />
 
               {/* Tech items */}
               {section.items.map((item, col) => {
-                const x = LABEL_X + 8 + col * (NODE_W + GAP_X);
-                const rx = isCylinder ? 8 : isCloud ? NODE_H / 2 : 10;
+                const x = LABEL_X + col * (NODE_W + GAP_X);
+                const rx = isCloud ? NODE_H / 2 : 10;
 
                 return (
                   <g key={`${section.key}-${col}`} filter="url(#ts-shadow)">
                     {/* Node body */}
                     {isCylinder ? (
                       <>
-                        <ellipse cx={x + NODE_W / 2} cy={y + 6} rx={NODE_W / 2} ry={6} fill={`${section.color}12`} stroke={section.color} strokeWidth="1" strokeOpacity="0.3" />
-                        <rect x={x} y={y + 6} width={NODE_W} height={NODE_H - 12} fill={`url(#tsgrad-${section.key})`} stroke={section.color} strokeWidth="1" strokeOpacity="0.3" />
-                        <ellipse cx={x + NODE_W / 2} cy={y + NODE_H - 6} rx={NODE_W / 2} ry={6} fill={`${section.color}0A`} stroke={section.color} strokeWidth="1" strokeOpacity="0.3" />
+                        <ellipse cx={x + NODE_W / 2} cy={y + 8} rx={NODE_W / 2} ry={8} fill={`${section.color}14`} stroke={section.color} strokeWidth="1" strokeOpacity="0.35" />
+                        <rect x={x} y={y + 8} width={NODE_W} height={NODE_H - 16} fill={`url(#tsgrad-${section.key})`} stroke={section.color} strokeWidth="1" strokeOpacity="0.35" />
+                        <path d={`M ${x} ${y + 8} A ${NODE_W / 2} 8 0 0 0 ${x + NODE_W} ${y + 8}`} fill="none" stroke={section.color} strokeWidth="0.5" strokeOpacity="0.2" />
+                        <ellipse cx={x + NODE_W / 2} cy={y + NODE_H - 8} rx={NODE_W / 2} ry={8} fill={`${section.color}0C`} stroke={section.color} strokeWidth="1" strokeOpacity="0.35" />
+                        <path d={`M ${x} ${y + NODE_H - 8} A ${NODE_W / 2} 8 0 0 0 ${x + NODE_W} ${y + NODE_H - 8}`} fill="none" stroke={section.color} strokeWidth="0.5" strokeOpacity="0.2" />
                       </>
                     ) : (
-                      <rect x={x} y={y} width={NODE_W} height={NODE_H} rx={rx} fill={`url(#tsgrad-${section.key})`} stroke={section.color} strokeWidth="1" strokeOpacity="0.3" />
+                      <rect x={x} y={y} width={NODE_W} height={NODE_H} rx={rx} fill={`url(#tsgrad-${section.key})`} stroke={section.color} strokeWidth="1.2" strokeOpacity="0.35" />
                     )}
 
                     {/* Layer label */}
-                    <text x={x + 10} y={y + 18} fontSize="9" fill="#606080" fontFamily="system-ui, sans-serif">
-                      {item.layer.length > 20 ? item.layer.slice(0, 18) + "…" : item.layer}
+                    <text x={x + 12} y={y + 18} fontSize="8.5" fill="#606080" fontFamily="system-ui, sans-serif" fontWeight="500">
+                      {item.layer.length > 24 ? item.layer.slice(0, 22) + "…" : item.layer}
                     </text>
 
                     {/* Tech name */}
-                    <text x={x + 10} y={y + 34} fontSize="12" fontWeight="600" fill="#e4e4ec" fontFamily="system-ui, sans-serif">
-                      {item.tech.length > 22 ? item.tech.slice(0, 20) + "…" : item.tech}
+                    <text x={x + 12} y={y + 35} fontSize="11.5" fontWeight="700" fill="#e4e4ec" fontFamily="system-ui, sans-serif">
+                      {item.tech.length > 26 ? item.tech.slice(0, 24) + "…" : item.tech}
                     </text>
 
                     {/* Reason tooltip-ish sublabel */}
-                    <text x={x + 10} y={y + 48} fontSize="9" fill="#505060" fontFamily="system-ui, sans-serif">
-                      {item.reason.length > 26 ? item.reason.slice(0, 24) + "…" : item.reason}
+                    <text x={x + 12} y={y + 52} fontSize="8.5" fill="#505060" fontFamily="system-ui, sans-serif">
+                      {item.reason.length > 32 ? item.reason.slice(0, 30) + "…" : item.reason}
                     </text>
                   </g>
                 );
