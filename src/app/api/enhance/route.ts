@@ -83,38 +83,34 @@ async function callVision(base64Image: string, prompt: string): Promise<string> 
 }
 
 async function takeScreenshot(url: string): Promise<string | null> {
-  const encoded = encodeURIComponent(url);
-  
-  // Browserless / screenshot API options — try multiple
-  const sources = [
-    // sshot.ru — free, simple
-    `https://sshot.ru/api/v1/screenshot?url=${encoded}&width=1024&height=768&format=png`,
-    // mini.s-shot.ru — alternative
-    `https://mini.s-shot.ru/1024x768/PNG/1024/${encoded}`,
-  ];
-  
-  for (const source of sources) {
-    try {
-      console.log(`[takeScreenshot] Trying: ${source.slice(0, 80)}...`);
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
-      const res = await fetch(source, { signal: controller.signal });
-      clearTimeout(timeout);
-      
-      if (res.ok) {
-        const buffer = Buffer.from(await res.arrayBuffer());
-        if (buffer.length > 1000) {
-          console.log(`[takeScreenshot] Success: ${buffer.length} bytes`);
-          return buffer.toString("base64");
-        }
+  // Call the host-side screenshot service (Puppeteer + Chromium)
+  // The service runs on port 3015, accessible from Docker via host.docker.internal or 172.17.0.1
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25000);
+    
+    // Use host gateway IP (Docker bridge)
+    const screenshotUrl = `http://host.docker.internal:3015/screenshot`;
+    const res = await fetch(screenshotUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    
+    if (res.ok) {
+      const data = await res.json();
+      if (data.image) {
+        console.log(`[takeScreenshot] Success: ${data.image.length} chars base64`);
+        return data.image;
       }
-      console.log(`[takeScreenshot] HTTP ${res.status} from source, len=${(await res.text().catch(()=>'')).length}`);
-    } catch (e: any) {
-      console.log(`[takeScreenshot] Error: ${e.message}`);
     }
+    console.log(`[takeScreenshot] Screenshot service returned ${res.status}`);
+  } catch (e: any) {
+    console.log(`[takeScreenshot] Service error: ${e.message}`);
   }
   
-  console.log(`[takeScreenshot] All sources failed for ${url}`);
   return null;
 }
 
