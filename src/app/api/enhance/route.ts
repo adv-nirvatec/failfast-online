@@ -284,11 +284,14 @@ CRITICAL: Output ONLY complete, valid HTML with inline CSS. No markdown, no code
 DESIGN RULES:
 - Research what this business does based on the page name. Deduce the industry.
 - Choose colors appropriate for the industry.
-- Structure: sticky nav with business name → hero with welcoming headline and CTA → services cards → about section → contact/location → footer.
+- Structure: sticky nav → hero with CTA → services cards → about → contact → footer.
 - Apply glassmorphism: backdrop-blur, translucent card backgrounds, subtle borders.
-- Modern typography, generous spacing, responsive with max-width container.
-- Include a small "Built by FailFast" footer link to https://failfast.online.
-- Keep it under 12KB. Make it look premium and trustworthy.`;
+- Modern typography, generous spacing, responsive max-width container (max-width: 1100px).
+- CRITICAL: For card grids, use CSS Grid NOT flexbox. This MUST be responsive:
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+  This ensures 2/3/4 cards all lay out perfectly with no orphaned single cards below.
+- Include "Built by FailFast" footer link to https://failfast.online.
+- Keep it under 12KB.`;
 
       const userPrompt = `Build a complete professional landing page for this business based on their Facebook page URL:
 
@@ -369,8 +372,11 @@ DESIGN RULES:
 - Apply modern layout: glassmorphism (backdrop-blur, translucent cards), generous spacing, clean typography.
 - Use the provided font family if available, otherwise system font stack.
 - Structure: sticky nav, hero, features/services cards (3-4), stats bar, CTA section, footer.
-- The footer must include: "Enhanced by" followed by the original URL and "by FailFast" linking to https://failfast.online — subtle, small.
-- Make the page responsive with a max-width container.
+- CRITICAL: For card grids, use CSS Grid NOT flexbox:
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+  This ensures 2/3/4 cards all lay out perfectly with no orphaned cards on their own row.
+- The footer must include: "Enhanced by" original URL and "by FailFast" linking to https://failfast.online — subtle, small.
+- Make the page responsive with a max-width container (max-width: 1100px).
 - Keep it under 12KB output size.
 - Do NOT include any JavaScript frameworks or external dependencies.
 - Match the tone of the original content.`;
