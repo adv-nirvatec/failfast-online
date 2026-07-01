@@ -107,9 +107,9 @@ function Nav() {
       <div className="max-w-6xl mx-auto px-6 h-14 sm:h-16 flex items-center justify-between">
         <a href="#" className="flex items-center gap-2.5 group">
           <img
-            src="/logo.png"
+            src="/logo-horizontal.png"
             alt="FailFast"
-            className="h-8 sm:h-10 w-auto object-contain"
+            className="h-7 sm:h-8 w-auto object-contain"
           />
         </a>
         <div className="flex items-center gap-3">
