@@ -430,7 +430,7 @@ INSTRUCTIONS:
 
 function cleanAiHtml(aiHtml: string, fallbackName: string): string {
   const htmlMatch = aiHtml.match(/<!DOCTYPE html>[\s\S]*<\/html>/i);
-  if (htmlMatch) return htmlMatch[0];
+  if (htmlMatch) return fixCardLayout(htmlMatch[0]);
 
   const codeMatch = aiHtml.match(/```html?\s*([\s\S]*?)```/);
   let clean = codeMatch ? codeMatch[1].trim() : aiHtml;
@@ -439,7 +439,57 @@ function cleanAiHtml(aiHtml: string, fallbackName: string): string {
     clean = `<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">\n<title>${fallbackName}</title>\n<style>body{margin:0;padding:0;}</style>\n</head>\n<body>${clean}</body>\n</html>`;
   }
 
-  return clean;
+  return fixCardLayout(clean);
+}
+
+function fixCardLayout(html: string): string {
+  // Post-process AI-generated HTML to fix card layout issues.
+  // Replace flex-wrap card containers with CSS Grid for proper responsive layout.
+  
+  // STEP 1: Fix <style> blocks — replace flex-wrap card layouts with CSS Grid
+  html = html.replace(
+    /(<style[^>]*>[\s\S]*?<\/style>)/gi,
+    (styleBlock) => {
+      // Find CSS rules that use flex-wrap:wrap and have gap (card containers)
+      let fixed = styleBlock.replace(
+        /([^{]*\{[^}]*)flex-wrap:\s*wrap([^}]*\})/gi,
+        (match, before, after) => {
+          // Only fix if not nav/header and has gap or cards-related selector
+          if (match.includes("nav") || match.includes("header") || match.includes("footer")) return match;
+          let result = before.replace(/display:\s*flex[^;]*;?\s*/gi, "")
+            .replace(/flex-wrap:\s*wrap[^;]*;?\s*/gi, "")
+            .replace(/justify-content:\s*(center|space-between|space-around)[^;]*;?\s*/gi, "")
+            .replace(/align-items:\s*center[^;]*;?\s*/gi, "");
+          result += "display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px;";
+          result += after;
+          return result;
+        }
+      );
+      return fixed;
+    }
+  );
+
+  // STEP 2: Fix inline style flex-wrap containers
+  html = html.replace(
+    /style="([^"]*display:\s*flex[^"]*flex-wrap:\s*wrap[^"]*)"/gi,
+    (match, content) => {
+      if (content.includes("nav") || content.includes("header")) return match;
+      let fixed = content
+        .replace(/display:\s*flex[^;]*;?\s*/gi, "")
+        .replace(/flex-wrap:\s*wrap[^;]*;?\s*/gi, "")
+        .replace(/justify-content:\s*(center|space-between|space-around)[^;]*;?\s*/gi, "");
+      fixed += "display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px;";
+      return `style="${fixed}"`;
+    }
+  );
+
+  // STEP 3: Fix calc width percentages that cause orphaned cards
+  html = html.replace(
+    /width:\s*calc\((\d+)%\s*-\s*\d+px\)/g,
+    "width: 100%"
+  );
+
+  return html;
 }
 
 function sanitizeHtml(html: string): string {
