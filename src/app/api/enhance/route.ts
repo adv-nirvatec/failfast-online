@@ -271,7 +271,49 @@ export async function POST(req: NextRequest) {
       fetchUrl = "https://" + fetchUrl;
     }
 
-    // Fetch the target website
+    // Check if Facebook URL — skip fetch entirely, Facebook blocks all server requests
+    const mode = isFacebookUrl(fetchUrl) ? "facebook" : "website";
+    
+    if (mode === "facebook") {
+      const fbIntel = extractFacebookIntelFromUrl(fetchUrl);
+      
+      const systemPrompt = `You are a senior web designer at FailFast. You build beautiful, modern professional websites for businesses that only have a Facebook page.
+
+CRITICAL: Output ONLY complete, valid HTML with inline CSS. No markdown, no code blocks. Start with <!DOCTYPE html>.
+
+DESIGN RULES:
+- Research what this business does based on the page name. Deduce the industry.
+- Choose colors appropriate for the industry.
+- Structure: sticky nav with business name → hero with welcoming headline and CTA → services cards → about section → contact/location → footer.
+- Apply glassmorphism: backdrop-blur, translucent card backgrounds, subtle borders.
+- Modern typography, generous spacing, responsive with max-width container.
+- Include a small "Built by FailFast" footer link to https://failfast.online.
+- Keep it under 12KB. Make it look premium and trustworthy.`;
+
+      const userPrompt = `Build a complete professional landing page for this business based on their Facebook page URL:
+
+FACEBOOK URL: ${fetchUrl}
+PAGE NAME (from URL): ${fbIntel.pageName}
+SLUG: ${fbIntel.rawSlug}
+
+Deduce what this business does from the name. Be generous with deducing services and industry. Create a modern, professional, industry-appropriate website. Include contact section explaining they can reach the business via Facebook for now.
+
+Output ONLY the complete HTML.`;
+
+      const aiHtml = await callDeepSeek(userPrompt, systemPrompt);
+      let cleanHtml = cleanAiHtml(aiHtml, fbIntel.pageName);
+      cleanHtml = sanitizeHtml(cleanHtml);
+      
+      return NextResponse.json({
+        success: true, html: cleanHtml, originalUrl: fetchUrl,
+        siteName: fbIntel.pageName, mode: "facebook",
+        brandDNA: { primaryColor: "#0ea5e9", secondaryColor: "#0891b2", isDark: false },
+        fbIntel: { name: fbIntel.pageName, category: "Business", location: "" },
+        note: "Generated from Facebook page URL.",
+      });
+    }
+
+    // Standard website — fetch and enhance
     let htmlContent = "";
     let fetchError = "";
     try {
@@ -300,50 +342,6 @@ export async function POST(req: NextRequest) {
 
     const domain = new URL(fetchUrl).hostname.replace("www.", "").replace("m.", "");
     const siteName = domain.split(".")[0];
-    const mode = isFacebookUrl(fetchUrl) ? "facebook" : "website";
-
-    // ─── Facebook: skip fetch, generate from URL ───
-    if (mode === "facebook") {
-      const fbIntel = extractFacebookIntelFromUrl(fetchUrl);
-      
-      const systemPrompt = `You are a senior web designer at FailFast. You build beautiful, modern professional websites for businesses that only have a Facebook page.
-
-CRITICAL: Output ONLY complete, valid HTML with inline CSS. No markdown, no code blocks. Start with <!DOCTYPE html>.
-
-DESIGN RULES:
-- Research what this business does based on the page name. Deduce the industry.
-- "southsmiledcc" → this is South Smile Dental Care Center — a dental clinic. "dcc" likely means Dental Care Center.
-- Choose colors appropriate for the industry: dental/healthcare → calming blues, teals, whites, with warm accent.
-- Structure: sticky nav with business name → hero with welcoming headline and CTA → services cards (4-6 dental services like checkups, cleaning, whitening, braces, emergency, etc.) → about section → contact/location → footer.
-- Apply glassmorphism: backdrop-blur, translucent card backgrounds, subtle borders.
-- Modern typography, generous spacing, responsive with max-width container.
-- Include a small "Built by FailFast" footer link to https://failfast.online.
-- Keep it under 12KB. Make it look premium and trustworthy — this is a medical business.`;
-
-      const userPrompt = `Build a complete professional landing page for this business based on their Facebook page URL:
-
-FACEBOOK URL: ${fetchUrl}
-PAGE NAME (from URL): ${fbIntel.pageName}
-SLUG: ${fbIntel.rawSlug}
-
-Deduce what this business does from the name. Be generous with deducing services — a dental clinic offers: general checkups, teeth cleaning, whitening, braces/orthodontics, root canals, crowns, emergency dental, pediatric dentistry. Include 6 service cards.
-
-Create a warm, trustworthy, professional dental clinic website. Use calming blues and teals. Include a contact section explaining they can reach the clinic via Facebook for now.
-
-Output ONLY the complete HTML.`;
-
-      const aiHtml = await callDeepSeek(userPrompt, systemPrompt);
-      let cleanHtml = cleanAiHtml(aiHtml, fbIntel.pageName);
-      cleanHtml = sanitizeHtml(cleanHtml);
-      
-      return NextResponse.json({
-        success: true, html: cleanHtml, originalUrl: fetchUrl,
-        siteName: fbIntel.pageName, mode: "facebook",
-        brandDNA: { primaryColor: "#0ea5e9", secondaryColor: "#0891b2", isDark: false },
-        fbIntel: { name: fbIntel.pageName, category: "Dental Clinic", location: "" },
-        note: "Generated from Facebook page — server-side fetch blocked by Facebook.",
-      });
-    }
 
     // ─── Standard website → enhanced version ───
 
