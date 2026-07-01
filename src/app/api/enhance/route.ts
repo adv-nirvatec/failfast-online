@@ -83,28 +83,38 @@ async function callVision(base64Image: string, prompt: string): Promise<string> 
 }
 
 async function takeScreenshot(url: string): Promise<string | null> {
-  // Use a public screenshot API that doesn't require auth
-  try {
-    // Screenshot machine free tier
-    const apiKey = process.env.SCREENSHOT_API_KEY || "";
-    if (apiKey) {
-      const res = await fetch(`https://api.screenshotmachine.com?key=${apiKey}&url=${encodeURIComponent(url)}&dimension=1024x768`);
+  // Try multiple free screenshot APIs
+  const encoded = encodeURIComponent(url);
+  const sources = [
+    // thum.io — free, no auth needed
+    `https://image.thum.io/get/width/1024/crop/768/${encoded}`,
+  ];
+  
+  for (const source of sources) {
+    try {
+      console.log(`[takeScreenshot] Trying: ${source.slice(0, 80)}...`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      const res = await fetch(source, { signal: controller.signal });
+      clearTimeout(timeout);
+      
       if (res.ok) {
-        const buffer = Buffer.from(await res.arrayBuffer());
-        return buffer.toString("base64");
+        const contentType = res.headers.get("content-type") || "";
+        if (contentType.includes("image")) {
+          const buffer = Buffer.from(await res.arrayBuffer());
+          console.log(`[takeScreenshot] Success: ${buffer.length} bytes`);
+          return buffer.toString("base64");
+        }
+        console.log(`[takeScreenshot] Response not image: ${contentType}`);
+      } else {
+        console.log(`[takeScreenshot] HTTP ${res.status} from ${source.slice(0, 60)}`);
       }
+    } catch (e: any) {
+      console.log(`[takeScreenshot] Error: ${e.message}`);
     }
-  } catch {}
+  }
   
-  // Fallback: thum.io free service
-  try {
-    const res = await fetch(`https://image.thum.io/get/width/1024/crop/768/${encodeURIComponent(url)}`);
-    if (res.ok) {
-      const buffer = Buffer.from(await res.arrayBuffer());
-      return buffer.toString("base64");
-    }
-  } catch {}
-  
+  console.log(`[takeScreenshot] All sources failed for ${url}`);
   return null;
 }
 
