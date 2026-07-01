@@ -456,10 +456,7 @@ function GeneratorSection() {
     appName: "",
     appDescription: "",
     industry: "",
-    targetUsers: "",
     features: "",
-    budget: "",
-    timeline: "",
     platform: "web",
     clientName: "",
     clientEmail: "",
@@ -489,11 +486,9 @@ function GeneratorSection() {
           appName: form.appName,
           appDescription: form.appDescription,
           industry: form.industry || undefined,
-          targetUsers: form.targetUsers || undefined,
+          targetUsers: undefined,
           coreFeatures: features.length > 0 ? features : undefined,
           constraints: {
-            budget: form.budget || undefined,
-            timeline: form.timeline || undefined,
             platform: form.platform || undefined,
           },
           clientName: form.clientName || undefined,
@@ -583,29 +578,17 @@ function GeneratorSection() {
               <p className="text-xs text-[#606080] mt-1">{form.appDescription.length}/2000</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-[#e4e4ec] mb-1.5">Industry</label>
-                <input
-                  type="text"
-                  maxLength={100}
-                  placeholder="e.g. Healthcare, Fintech"
-                  value={form.industry}
-                  onChange={(e) => setForm({ ...form, industry: e.target.value })}
-                  className={`w-full rounded-xl border ${COLORS.border} ${COLORS.card} px-4 py-3 text-sm text-white placeholder:text-[#606080] focus:outline-none focus:border-[#a855f7]/50 transition-all`}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-[#e4e4ec] mb-1.5">Target Users</label>
-                <input
-                  type="text"
-                  maxLength={500}
-                  placeholder="e.g. Small business owners"
-                  value={form.targetUsers}
-                  onChange={(e) => setForm({ ...form, targetUsers: e.target.value })}
-                  className={`w-full rounded-xl border ${COLORS.border} ${COLORS.card} px-4 py-3 text-sm text-white placeholder:text-[#606080] focus:outline-none focus:border-[#a855f7]/50 transition-all`}
-                />
-              </div>
+            {/* Industry — full width */}
+            <div>
+              <label className="block text-sm font-medium text-[#e4e4ec] mb-1.5">Industry</label>
+              <input
+                type="text"
+                maxLength={100}
+                placeholder="e.g. Healthcare, Fintech"
+                value={form.industry}
+                onChange={(e) => setForm({ ...form, industry: e.target.value })}
+                className={`w-full rounded-xl border ${COLORS.border} ${COLORS.card} px-4 py-3 text-sm text-white placeholder:text-[#606080] focus:outline-none focus:border-[#a855f7]/50 transition-all`}
+              />
             </div>
 
             <div>
@@ -622,37 +605,6 @@ function GeneratorSection() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-[#e4e4ec] mb-1.5">Budget</label>
-                <select
-                  value={form.budget}
-                  onChange={(e) => setForm({ ...form, budget: e.target.value })}
-                  className={`w-full rounded-xl border ${COLORS.border} ${COLORS.card} px-4 py-3 text-sm text-white bg-[#111118] focus:outline-none focus:border-[#a855f7]/50 transition-all appearance-none`}
-                >
-                  <option value="">Select budget range</option>
-                  <option value="Bootstrap (<$5k)">Bootstrap (&lt;$5k)</option>
-                  <option value="Seed ($5k-$25k)">Seed ($5k-$25k)</option>
-                  <option value="Funded ($25k-$100k)">Funded ($25k-$100k)</option>
-                  <option value="Enterprise ($100k+)">Enterprise ($100k+)</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-[#e4e4ec] mb-1.5">Timeline</label>
-                <select
-                  value={form.timeline}
-                  onChange={(e) => setForm({ ...form, timeline: e.target.value })}
-                  className={`w-full rounded-xl border ${COLORS.border} ${COLORS.card} px-4 py-3 text-sm text-white bg-[#111118] focus:outline-none focus:border-[#a855f7]/50 transition-all appearance-none`}
-                >
-                  <option value="">Select timeline</option>
-                  <option value="ASAP (2-4 weeks)">ASAP (2-4 weeks)</option>
-                  <option value="1-2 months">1-2 months</option>
-                  <option value="3-6 months">3-6 months</option>
-                  <option value="Flexible">Flexible</option>
-                </select>
-              </div>
-            </div>
-
             <div>
               <label className="block text-sm font-medium text-[#e4e4ec] mb-1.5">Platform</label>
               <div className="flex gap-3">
@@ -667,7 +619,7 @@ function GeneratorSection() {
                         : `${COLORS.border} ${COLORS.card} text-[#9090a8] hover:text-white hover:border-[#a855f7]/30`
                     }`}
                   >
-                    {p === "web" ? "🌐 Web" : p === "mobile" ? "📱 Mobile" : "🔄 Both"}
+                    {p === "web" ? "🌐 Web" : p === "mobile" ? "📱 Mobile (PWA)" : "🔄 Both"}
                   </button>
                 ))}
               </div>
