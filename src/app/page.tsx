@@ -188,7 +188,7 @@ function Hero() {
 
           {/* Headline */}
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-[0.95] mb-6">
-            <span className="text-white">Fail fast</span>
+            <span className="text-white">Test before you</span>
             <br />
             <span
               className="bg-gradient-to-r from-[#a855f7] via-[#ec4899] to-[#c084fc] bg-clip-text text-transparent"
@@ -196,14 +196,15 @@ function Hero() {
                 backgroundSize: "200% 100%",
               }}
             >
-              before you build slow.
+              invest.
             </span>
           </h1>
 
           {/* Subhead */}
           <p className="text-lg sm:text-xl text-[#9090a8] leading-relaxed max-w-xl mb-10">
-            Stop building what nobody wants. FailFast generates AI-powered blueprints — tech stack,
-            architecture, and DB schema — in minutes, not weeks.
+            Turn your app idea into a practical MVP blueprint, usable by agentic AI to build a lean,
+            testable version fast. FailFast helps you validate product-market fit before spending weeks
+            overbuilding something the market may not want.
           </p>
 
           {/* CTAs */}
