@@ -83,32 +83,33 @@ async function callVision(base64Image: string, prompt: string): Promise<string> 
 }
 
 async function takeScreenshot(url: string): Promise<string | null> {
-  // Call the host-side screenshot service (Puppeteer + Chromium)
-  // The service runs on port 3015, accessible from Docker via host.docker.internal or 172.17.0.1
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 25000);
-    
-    // Use host gateway IP (Docker bridge)
-    const screenshotUrl = `http://host.docker.internal:3015/screenshot`;
-    const res = await fetch(screenshotUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    
-    if (res.ok) {
-      const data = await res.json();
-      if (data.image) {
-        console.log(`[takeScreenshot] Success: ${data.image.length} chars base64`);
-        return data.image;
+  // Try reaching the host-side Puppeteer screenshot service on port 3015
+  // On Linux Docker, the host is reachable via the default gateway
+  const hosts = ["172.24.0.1", "172.17.0.1", "host.docker.internal"];
+  
+  for (const host of hosts) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 25000);
+      const res = await fetch(`http://${host}:3015/screenshot`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      
+      if (res.ok) {
+        const data = await res.json();
+        if (data.image && data.image.length > 1000) {
+          console.log(`[takeScreenshot] Success via ${host}: ${data.image.length} chars`);
+          return data.image;
+        }
       }
+      console.log(`[takeScreenshot] ${host}:${3015} → HTTP ${res.status}`);
+    } catch (e: any) {
+      console.log(`[takeScreenshot] ${host}: ${e.message}`);
     }
-    console.log(`[takeScreenshot] Screenshot service returned ${res.status}`);
-  } catch (e: any) {
-    console.log(`[takeScreenshot] Service error: ${e.message}`);
   }
   
   return null;
