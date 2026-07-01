@@ -10,6 +10,8 @@ export default function EnhancePage() {
   const [siteName, setSiteName] = useState("");
   const [originalUrl, setOriginalUrl] = useState("");
   const [error, setError] = useState("");
+  const [mode, setMode] = useState<"website" | "facebook" | null>(null);
+  const [fbIntel, setFbIntel] = useState<{ name: string; category: string; location: string } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,6 +30,8 @@ export default function EnhancePage() {
       setEnhancedHtml(data.html);
       setSiteName(data.siteName || "");
       setOriginalUrl(data.originalUrl || "");
+      setMode(data.mode || "website");
+      setFbIntel(data.fbIntel || null);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -68,7 +72,7 @@ export default function EnhancePage() {
               </span>
             </h1>
             <p className="text-[#9090a8] text-lg max-w-xl mx-auto">
-              Drop any URL and our AI will redesign it with modern aesthetics — same content, fresh look.
+              Drop any URL or Facebook page — our AI will build a modern website from it. Same identity, fresh design.
             </p>
           </div>
 
@@ -86,7 +90,7 @@ export default function EnhancePage() {
                   required
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
-                  placeholder="e.g. https://stripe.com"
+                  placeholder="e.g. https://stripe.com or a Facebook business page"
                   className="w-full rounded-2xl border border-[#1e1e2e] bg-[#111118] pl-12 pr-5 py-4 text-sm text-white placeholder:text-[#606080] focus:outline-none focus:border-[#ec4899]/50 focus:ring-1 focus:ring-[#ec4899]/20 transition-all"
                 />
               </div>
@@ -136,16 +140,32 @@ export default function EnhancePage() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-sm font-semibold text-white">
-                    {siteName || "Website"} — Enhanced Preview
+                    {siteName || "Website"} — {mode === "facebook" ? "Generated from Facebook" : "Enhanced Preview"}
                   </h3>
                   <p className="text-xs text-[#606080]">
-                    Original: {originalUrl || url}
+                    {mode === "facebook" ? `Built from ${originalUrl || url}` : `Original: ${originalUrl || url}`}
                   </p>
                 </div>
-                <span className="rounded-full border border-[#10b981]/20 bg-[#10b981]/5 px-3 py-1 text-xs text-[#10b981]">
-                  AI Enhanced
-                </span>
+                <div className="flex items-center gap-2">
+                  {mode === "facebook" && fbIntel && (
+                    <span className="rounded-full border border-[#a855f7]/20 bg-[#a855f7]/5 px-3 py-1 text-xs text-[#d8b4fe] hidden sm:inline-flex">
+                      {fbIntel.category}
+                    </span>
+                  )}
+                  <span className="rounded-full border border-[#10b981]/20 bg-[#10b981]/5 px-3 py-1 text-xs text-[#10b981]">
+                    {mode === "facebook" ? "Built from FB" : "AI Enhanced"}
+                  </span>
+                </div>
               </div>
+
+              {mode === "facebook" && fbIntel && (
+                <div className="flex flex-wrap gap-2 text-xs text-[#9090a8]">
+                  <span>🏢 {fbIntel.name}</span>
+                  <span>·</span>
+                  <span>📂 {fbIntel.category}</span>
+                  {fbIntel.location && <><span>·</span><span>📍 {fbIntel.location}</span></>}
+                </div>
+              )}
 
               {/* Iframe preview */}
               <div className="rounded-2xl border border-[#1e1e2e] overflow-hidden bg-white">
