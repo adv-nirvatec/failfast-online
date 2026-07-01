@@ -165,8 +165,21 @@ function extractFacebookIntelFromUrl(url: string): { pageName: string; rawSlug: 
       if (rawSlug === "profile.php") {
         pageName = "Business";
       } else {
+        // Convert slug to readable name
+        // "southsmiledcc" → detect "south", "smile", "dcc" = Dental Care Center
         pageName = rawSlug.replace(/-/g, " ").replace(/\./g, " ");
+        // Smart abbreviation expansion
+        pageName = pageName
+          .replace(/\bdcc\b/gi, "Dental Care Center")
+          .replace(/\bdental\b/gi, "Dental")
+          .replace(/\bclinic\b/gi, "Clinic")
+          .replace(/\bcare\b/gi, "Care");
+        // Title case each word
         pageName = pageName.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+        // Fix camelCase from collapsed words: "Southsmiledental..." → space before caps
+        pageName = pageName.replace(/([a-z])([A-Z])/g, "$1 $2");
+        // Clean double spaces
+        pageName = pageName.replace(/\s+/g, " ").trim();
       }
     }
   } catch {}
