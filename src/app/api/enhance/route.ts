@@ -154,50 +154,23 @@ function isFacebookUrl(url: string): boolean {
   return url.includes("facebook.com") || url.includes("fb.com") || url.includes("fb.me");
 }
 
-async function fetchFacebookPage(url: string): Promise<{ html: string; error: string }> {
-  // Facebook aggressively blocks headless fetches.
-  // Strategy: try the mobile version first (m.facebook.com), then the desktop version.
-  const mobileUrl = url.replace("www.facebook.com", "m.facebook.com").replace("facebook.com", "m.facebook.com");
-  
-  const headers: Record<string, string> = {
-    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Connection": "keep-alive",
-    "Cache-Control": "no-cache",
-  };
-
-  // Try mobile version first
-  try {
-    const res = await fetch(mobileUrl, { headers, redirect: "follow" });
-    if (res.ok) {
-      const html = await res.text();
-      if (html.length > 5000) return { html, error: "" };
-    }
-  } catch { /* continue */ }
-
-  // Try desktop version
-  try {
-    headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-    const res = await fetch(url, { headers, redirect: "follow" });
-    if (res.ok) {
-      const html = await res.text();
-      if (html.length > 5000) return { html, error: "" };
-    }
-  } catch { /* continue */ }
-
-  // If Facebook blocks us entirely, we can still generate a website from the URL alone
-  // Extract business name from the URL path
+function extractFacebookIntelFromUrl(url: string): { pageName: string; rawSlug: string } {
   let pageName = "Local Business";
+  let rawSlug = "";
   try {
-    const pathParts = new URL(url).pathname.split("/").filter(Boolean);
+    const urlObj = new URL(url);
+    const pathParts = urlObj.pathname.split("/").filter(Boolean);
     if (pathParts.length > 0) {
-      pageName = pathParts[0].replace(/-/g, " ").replace(/profile\.php.*/, "Business");
+      rawSlug = pathParts[0];
+      if (rawSlug === "profile.php") {
+        pageName = "Business";
+      } else {
+        pageName = rawSlug.replace(/-/g, " ").replace(/\./g, " ");
+        pageName = pageName.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+      }
     }
   } catch {}
-
-  return { html: "", error: `Facebook blocked automated access (they require login). We'll build a page for "${pageName}" based on the URL.` };
+  return { pageName, rawSlug };
 }
 
 function extractFacebookIntel(html: string, url: string): {
@@ -273,26 +246,6 @@ function extractFacebookIntel(html: string, url: string): {
   return { pageName, category, about, services: services.slice(0, 4), location, contactInfo, postHighlights };
 }
 
-function extractFacebookIntelFromUrl(url: string): { pageName: string } {
-  let pageName = "Local Business";
-  try {
-    const urlObj = new URL(url);
-    const pathParts = urlObj.pathname.split("/").filter(Boolean);
-    if (pathParts.length > 0) {
-      const raw = pathParts[0];
-      // Handle profile.php?id=xxx
-      if (raw === "profile.php") {
-        pageName = "Business";
-      } else {
-        pageName = raw.replace(/-/g, " ").replace(/\./g, " ");
-        // Capitalize each word
-        pageName = pageName.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-      }
-    }
-  } catch {}
-  return { pageName };
-}
-
 export async function POST(req: NextRequest) {
   try {
     const { url } = await req.json();
@@ -336,95 +289,50 @@ export async function POST(req: NextRequest) {
     const siteName = domain.split(".")[0];
     const mode = isFacebookUrl(fetchUrl) ? "facebook" : "website";
 
-    // ─── Facebook: use dedicated fetcher ───
+    // ─── Facebook: skip fetch, generate from URL ───
     if (mode === "facebook") {
-      const fbResult = await fetchFacebookPage(fetchUrl);
+      const fbIntel = extractFacebookIntelFromUrl(fetchUrl);
       
-      if (fbResult.html) {
-        // We got the page HTML — extract intel from it
-        htmlContent = fbResult.html;
-      } else {
-        // Facebook blocked us — generate from URL alone
-        const fbIntel = extractFacebookIntelFromUrl(fetchUrl);
-        
-        const systemPrompt = `You are a senior web designer building a modern business website. Output ONLY complete valid HTML with inline CSS. Start with <!DOCTYPE html>. Choose appropriate brand colors for the business category. Include nav, hero, services cards, about, contact, and footer with "Built by FailFast" link.`;
-        
-        const userPrompt = `Build a professional landing page for:
-NAME: ${fbIntel.pageName}
-SOURCE: ${fetchUrl}
+      const systemPrompt = `You are a senior web designer at FailFast. You build beautiful, modern professional websites for businesses that only have a Facebook page.
 
-This business currently only has a Facebook page. Generate a complete modern website from scratch. Use colors appropriate for a local business. Include: sticky nav, hero section with compelling headline and CTA, 3-4 services/offerings cards, about section, contact section with note about reaching them via Facebook, and footer. Output ONLY the HTML.`;
-        
-        const aiHtml = await callDeepSeek(userPrompt, systemPrompt);
-        let cleanHtml = cleanAiHtml(aiHtml, fbIntel.pageName);
-        cleanHtml = sanitizeHtml(cleanHtml);
-        
-        return NextResponse.json({
-          success: true, html: cleanHtml, originalUrl: fetchUrl,
-          siteName: fbIntel.pageName, mode: "facebook",
-          brandDNA: { primaryColor: "#2563eb", secondaryColor: "#059669", isDark: false },
-          fbIntel: { name: fbIntel.pageName, category: "Local Business", location: "" },
-          note: "Generated from Facebook page name — full page data was unavailable.",
-        });
-      }
-    }
-
-    // ─── MODE 1: Facebook page → website ───
-    if (mode === "facebook") {
-      const fbIntel = extractFacebookIntel(htmlContent, fetchUrl);
-
-      const systemPrompt = `You are a senior web designer at FailFast. You build beautiful, modern business websites from scratch. You're given intelligence extracted from a Facebook business page — the business has no website.
-
-CRITICAL: Output ONLY complete, valid HTML with inline CSS. No markdown, no code block wrappers. Start with <!DOCTYPE html>.
+CRITICAL: Output ONLY complete, valid HTML with inline CSS. No markdown, no code blocks. Start with <!DOCTYPE html>.
 
 DESIGN RULES:
-- Choose brand-appropriate colors based on the business category (not our brand colors).
-  Restaurant: warm reds/oranges. Beauty: soft pinks/rose gold. Healthcare: blues/teals. Legal: navy/gold. Home services: earthy greens/blues.
-- Match the tone of the business (friendly, professional, luxury, etc).
-- Structure: sticky nav with business name → hero with headline/CTA → services/offerings in cards → about section with key info → contact/location section → footer.
+- Research what this business does based on the page name. Deduce the industry.
+- "southsmiledcc" → this is South Smile Dental Care Center — a dental clinic. "dcc" likely means Dental Care Center.
+- Choose colors appropriate for the industry: dental/healthcare → calming blues, teals, whites, with warm accent.
+- Structure: sticky nav with business name → hero with welcoming headline and CTA → services cards (4-6 dental services like checkups, cleaning, whitening, braces, emergency, etc.) → about section → contact/location → footer.
 - Apply glassmorphism: backdrop-blur, translucent card backgrounds, subtle borders.
 - Modern typography, generous spacing, responsive with max-width container.
-- Include a subtle "Built by FailFast" link to https://failfast.online in the footer.
-- Use the exact business name, category, services provided.
-- Keep it under 12KB.`;
+- Include a small "Built by FailFast" footer link to https://failfast.online.
+- Keep it under 12KB. Make it look premium and trustworthy — this is a medical business.`;
 
-      const userPrompt = `Build a complete landing page for this business based on their Facebook presence:
-
-BUSINESS NAME: ${fbIntel.pageName}
-CATEGORY: ${fbIntel.category}
-LOCATION: ${fbIntel.location || "Local"}
-CONTACT: ${fbIntel.contactInfo || "Available via Facebook"}
-ABOUT: ${fbIntel.about}
-
-SERVICES/OFFERINGS:
-${fbIntel.services.map((s, i) => `${i + 1}. ${s}`).join("\n") || "Contact for details"}
-
-${fbIntel.postHighlights.length > 0 ? `
-RECENT POSTS (for context on what they do):
-${fbIntel.postHighlights.map((p, i) => `${i + 1}. ${p}`).join("\n")}
-` : ""}
+      const userPrompt = `Build a complete professional landing page for this business based on their Facebook page URL:
 
 FACEBOOK URL: ${fetchUrl}
+PAGE NAME (from URL): ${fbIntel.pageName}
+SLUG: ${fbIntel.rawSlug}
 
-Create a professional, modern landing page. Output ONLY the HTML.`;
+Deduce what this business does from the name. Be generous with deducing services — a dental clinic offers: general checkups, teeth cleaning, whitening, braces/orthodontics, root canals, crowns, emergency dental, pediatric dentistry. Include 6 service cards.
+
+Create a warm, trustworthy, professional dental clinic website. Use calming blues and teals. Include a contact section explaining they can reach the clinic via Facebook for now.
+
+Output ONLY the complete HTML.`;
 
       const aiHtml = await callDeepSeek(userPrompt, systemPrompt);
-
-      let cleanHtml = cleanAiHtml(aiHtml, siteName);
+      let cleanHtml = cleanAiHtml(aiHtml, fbIntel.pageName);
       cleanHtml = sanitizeHtml(cleanHtml);
-
+      
       return NextResponse.json({
-        success: true,
-        html: cleanHtml,
-        originalUrl: fetchUrl,
-        siteName: fbIntel.pageName,
-        mode: "facebook",
-        brandDNA: { primaryColor: "#2563eb", secondaryColor: "#059669", isDark: false },
-        fbIntel: { name: fbIntel.pageName, category: fbIntel.category, location: fbIntel.location },
+        success: true, html: cleanHtml, originalUrl: fetchUrl,
+        siteName: fbIntel.pageName, mode: "facebook",
+        brandDNA: { primaryColor: "#0ea5e9", secondaryColor: "#0891b2", isDark: false },
+        fbIntel: { name: fbIntel.pageName, category: "Dental Clinic", location: "" },
+        note: "Generated from Facebook page — server-side fetch blocked by Facebook.",
       });
     }
 
-    // ─── MODE 2: Standard website → enhanced version ───
+    // ─── Standard website → enhanced version ───
 
     // Extract brand DNA
     const brand = extractBrandDNA(htmlContent, domain);
