@@ -151,7 +151,53 @@ function extractBrandDNA(html: string, domain: string): {
 }
 
 function isFacebookUrl(url: string): boolean {
-  return url.includes("facebook.com") || url.includes("fb.com");
+  return url.includes("facebook.com") || url.includes("fb.com") || url.includes("fb.me");
+}
+
+async function fetchFacebookPage(url: string): Promise<{ html: string; error: string }> {
+  // Facebook aggressively blocks headless fetches.
+  // Strategy: try the mobile version first (m.facebook.com), then the desktop version.
+  const mobileUrl = url.replace("www.facebook.com", "m.facebook.com").replace("facebook.com", "m.facebook.com");
+  
+  const headers: Record<string, string> = {
+    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Cache-Control": "no-cache",
+  };
+
+  // Try mobile version first
+  try {
+    const res = await fetch(mobileUrl, { headers, redirect: "follow" });
+    if (res.ok) {
+      const html = await res.text();
+      if (html.length > 5000) return { html, error: "" };
+    }
+  } catch { /* continue */ }
+
+  // Try desktop version
+  try {
+    headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+    const res = await fetch(url, { headers, redirect: "follow" });
+    if (res.ok) {
+      const html = await res.text();
+      if (html.length > 5000) return { html, error: "" };
+    }
+  } catch { /* continue */ }
+
+  // If Facebook blocks us entirely, we can still generate a website from the URL alone
+  // Extract business name from the URL path
+  let pageName = "Local Business";
+  try {
+    const pathParts = new URL(url).pathname.split("/").filter(Boolean);
+    if (pathParts.length > 0) {
+      pageName = pathParts[0].replace(/-/g, " ").replace(/profile\.php.*/, "Business");
+    }
+  } catch {}
+
+  return { html: "", error: `Facebook blocked automated access (they require login). We'll build a page for "${pageName}" based on the URL.` };
 }
 
 function extractFacebookIntel(html: string, url: string): {
@@ -227,6 +273,26 @@ function extractFacebookIntel(html: string, url: string): {
   return { pageName, category, about, services: services.slice(0, 4), location, contactInfo, postHighlights };
 }
 
+function extractFacebookIntelFromUrl(url: string): { pageName: string } {
+  let pageName = "Local Business";
+  try {
+    const urlObj = new URL(url);
+    const pathParts = urlObj.pathname.split("/").filter(Boolean);
+    if (pathParts.length > 0) {
+      const raw = pathParts[0];
+      // Handle profile.php?id=xxx
+      if (raw === "profile.php") {
+        pageName = "Business";
+      } else {
+        pageName = raw.replace(/-/g, " ").replace(/\./g, " ");
+        // Capitalize each word
+        pageName = pageName.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+      }
+    }
+  } catch {}
+  return { pageName };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { url } = await req.json();
@@ -266,9 +332,42 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: fetchError }, { status: 422 });
     }
 
-    const domain = new URL(fetchUrl).hostname.replace("www.", "");
+    const domain = new URL(fetchUrl).hostname.replace("www.", "").replace("m.", "");
     const siteName = domain.split(".")[0];
     const mode = isFacebookUrl(fetchUrl) ? "facebook" : "website";
+
+    // ─── Facebook: use dedicated fetcher ───
+    if (mode === "facebook") {
+      const fbResult = await fetchFacebookPage(fetchUrl);
+      
+      if (fbResult.html) {
+        // We got the page HTML — extract intel from it
+        htmlContent = fbResult.html;
+      } else {
+        // Facebook blocked us — generate from URL alone
+        const fbIntel = extractFacebookIntelFromUrl(fetchUrl);
+        
+        const systemPrompt = `You are a senior web designer building a modern business website. Output ONLY complete valid HTML with inline CSS. Start with <!DOCTYPE html>. Choose appropriate brand colors for the business category. Include nav, hero, services cards, about, contact, and footer with "Built by FailFast" link.`;
+        
+        const userPrompt = `Build a professional landing page for:
+NAME: ${fbIntel.pageName}
+SOURCE: ${fetchUrl}
+
+This business currently only has a Facebook page. Generate a complete modern website from scratch. Use colors appropriate for a local business. Include: sticky nav, hero section with compelling headline and CTA, 3-4 services/offerings cards, about section, contact section with note about reaching them via Facebook, and footer. Output ONLY the HTML.`;
+        
+        const aiHtml = await callDeepSeek(userPrompt, systemPrompt);
+        let cleanHtml = cleanAiHtml(aiHtml, fbIntel.pageName);
+        cleanHtml = sanitizeHtml(cleanHtml);
+        
+        return NextResponse.json({
+          success: true, html: cleanHtml, originalUrl: fetchUrl,
+          siteName: fbIntel.pageName, mode: "facebook",
+          brandDNA: { primaryColor: "#2563eb", secondaryColor: "#059669", isDark: false },
+          fbIntel: { name: fbIntel.pageName, category: "Local Business", location: "" },
+          note: "Generated from Facebook page name — full page data was unavailable.",
+        });
+      }
+    }
 
     // ─── MODE 1: Facebook page → website ───
     if (mode === "facebook") {
