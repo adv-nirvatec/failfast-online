@@ -494,6 +494,10 @@ function GeneratorSection() {
   const handleConsultRequest = async () => {
     if (!result) return;
     setSendingConsult(true);
+    // Fire Meta Pixel Lead event
+    if (typeof window !== "undefined" && (window as any).fbq) {
+      (window as any).fbq("track", "Lead", { event_name: "RequestConsult" });
+    }
     try {
       await fetch("/api/notify-consult", {
         method: "POST",
